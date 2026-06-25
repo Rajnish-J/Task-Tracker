@@ -17,6 +17,7 @@ import {
 import {
   CalendarRange,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FolderKanban,
@@ -195,6 +196,26 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
     }
     return STATUS_KEYS.filter((k) => set.has(k));
   }, [projects]);
+
+  const [collapsedTasks, setCollapsedTasks] = React.useState<Set<string>>(new Set());
+  const toggleTask = React.useCallback((id: string) => {
+    setCollapsedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
+  const toggleGroup = React.useCallback((id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const [projectFilter, setProjectFilter] = React.useState<Set<string>>(() => new Set(allProjectIds));
   const [priorityFilter, setPriorityFilter] = React.useState<Set<string>>(() => new Set(allPriorities));
@@ -456,26 +477,40 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
                 </div>
 
                 {/* Groups */}
-                {groups.map((group) => (
+                {groups.map((group) => {
+                  const groupCollapsed = collapsedGroups.has(group.id);
+                  return (
                   <div key={group.id}>
                     {/* Project group header */}
                     <div className="flex border-b border-border/60 bg-linear-to-r from-muted/70 to-muted/20">
-                      <div
-                        className="sticky left-0 z-10 flex items-center gap-2 border-r border-border/60 bg-muted/60 px-4 text-sm font-semibold"
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.id)}
+                        aria-label={groupCollapsed ? "Expand group" : "Collapse group"}
+                        aria-expanded={!groupCollapsed}
+                        className="sticky left-0 z-10 flex items-center gap-2 border-r border-border/60 bg-muted/60 px-4 text-left text-sm font-semibold hover:bg-muted/80"
                         style={{ width: LEFT_WIDTH, height: ROW_H }}
                       >
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                           <FolderKanban className="size-3.5" />
                         </span>
                         <span className="truncate">{group.name}</span>
-                        <Badge variant="secondary" className="ml-auto">
-                          {group.rows.length}
-                        </Badge>
-                      </div>
+                        <span className="ml-auto flex items-center gap-2">
+                          <Badge variant="secondary">{group.rows.length}</Badge>
+                          {groupCollapsed ? (
+                            <ChevronRight className="size-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="size-4 text-muted-foreground" />
+                          )}
+                        </span>
+                      </button>
                       <div className="relative" style={{ width: total, height: ROW_H }} />
                     </div>
 
-                {group.rows.map(({ task, subtasks }) => (
+                {!groupCollapsed && group.rows.map(({ task, subtasks }) => {
+                  const hasSubtasks = subtasks.length > 0;
+                  const collapsed = collapsedTasks.has(task.id);
+                  return (
                   <React.Fragment key={task.id}>
                     <TimelineRow
                       item={task}
@@ -485,8 +520,12 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
                       showToday={showToday}
                       todayX={todayX}
                       onOpen={openTask}
+                      collapsible={hasSubtasks}
+                      collapsed={collapsed}
+                      onToggleCollapse={() => toggleTask(task.id)}
                     />
-                    {subtasks.map((sub, idx) => (
+                    {hasSubtasks && !collapsed
+                      ? subtasks.map((sub, idx) => (
                       <TimelineRow
                         key={`${task.id}-sub-${idx}`}
                         item={sub}
@@ -497,11 +536,14 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
                         todayX={todayX}
                         onOpen={openTask}
                       />
-                    ))}
+                    ))
+                      : null}
                   </React.Fragment>
-                ))}
+                  );
+                })}
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               </div>
             )}
@@ -519,6 +561,9 @@ function TimelineRow({
   showToday,
   todayX,
   onOpen,
+  collapsible = false,
+  collapsed = false,
+  onToggleCollapse,
 }: {
   item: BarItem;
   columns: ColumnSpec[];
@@ -527,6 +572,9 @@ function TimelineRow({
   showToday: boolean;
   todayX: number;
   onOpen: (id: string) => void;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const left = dateToX(item.start, columns, total);
   // Render the bar through to the END of the due day so single-day items are visible.
@@ -543,6 +591,22 @@ function TimelineRow({
         )}
         style={{ width: LEFT_WIDTH, height: ROW_H }}
       >
+        {item.isSubtask ? null : collapsible ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCollapse?.();
+            }}
+            aria-label={collapsed ? "Expand project" : "Collapse project"}
+            aria-expanded={!collapsed}
+            className="-ml-1 flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+          >
+            {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+          </button>
+        ) : (
+          <span className="-ml-1 size-4 shrink-0" />
+        )}
         <span className={cn("size-1.5 shrink-0 rounded-full", PRIORITY_DOT[item.priority] ?? "bg-slate-400")} />
         <span
           className={cn(

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarDays, Check, ChevronDown, CircleDot, FileText, ListChecks, Users } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, CircleDot, FileText, ListChecks, Plus, Users } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -24,13 +24,19 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { moveTask, toggleStoryTaskOnBoard } from "@/app/actions";
+import { createStoryTaskOnBoard, moveTask, toggleStoryTaskOnBoard } from "@/app/actions";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
+import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+
+const selectClassName =
+  "h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -77,11 +83,22 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
   boardRef.current = board;
 
   // Re-sync with server data whenever the board's shape/order changes (e.g.
-  // after a revalidate from creating, editing, or moving a task).
+  // after a revalidate from creating, editing, or moving a task) — including the
+  // per-card checklist, so ticking or adding a sub-task on the board re-renders.
   const signature = React.useMemo(
     () =>
       project.columns
-        .map((column) => `${column.id}:${column.tasks.map((task) => task.id).join(",")}`)
+        .map(
+          (column) =>
+            `${column.id}:${column.tasks
+              .map(
+                (task) =>
+                  `${task.id}[${task.storyTasks
+                    .map((story) => `${story.id}:${story.isDone ? 1 : 0}`)
+                    .join(",")}]`,
+              )
+              .join(",")}`,
+        )
         .join("|"),
     [project.columns],
   );
@@ -325,6 +342,7 @@ function TaskCard({ task, dragging }: { task: Task; dragging?: boolean }) {
 
 function TaskCardContent({ task, projectId }: { task: Task; projectId?: string }) {
   const [tasksOpen, setTasksOpen] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
   const totalTasks = task.storyTasks.length;
   const doneTasks = task.storyTasks.filter((child) => child.isDone).length;
   const allDone = totalTasks > 0 && doneTasks === totalTasks;
@@ -341,7 +359,7 @@ function TaskCardContent({ task, projectId }: { task: Task; projectId?: string }
           {task.priority.toLowerCase()}
         </Badge>
       </div>
-      {totalTasks > 0 ? (
+      {projectId || totalTasks > 0 ? (
         <Collapsible open={tasksOpen} onOpenChange={setTasksOpen} className="space-y-1.5">
           <CollapsibleTrigger
             onClick={stopCardEvents}
@@ -359,15 +377,17 @@ function TaskCardContent({ task, projectId }: { task: Task; projectId?: string }
               {doneTasks}/{totalTasks}
             </span>
           </CollapsibleTrigger>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                allDone ? "bg-emerald-500" : "bg-primary",
-              )}
-              style={{ width: `${(doneTasks / totalTasks) * 100}%` }}
-            />
-          </div>
+          {totalTasks > 0 ? (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  allDone ? "bg-emerald-500" : "bg-primary",
+                )}
+                style={{ width: `${(doneTasks / totalTasks) * 100}%` }}
+              />
+            </div>
+          ) : null}
           <CollapsibleContent>
             <ul className="space-y-1.5 pt-1">
               {task.storyTasks.map((storyTask) => (
@@ -419,6 +439,77 @@ function TaskCardContent({ task, projectId }: { task: Task; projectId?: string }
                 </li>
               ))}
             </ul>
+            {projectId ? (
+              adding ? (
+                <form
+                  action={createStoryTaskOnBoard}
+                  onClick={stopCardEvents}
+                  onPointerDown={stopCardEvents}
+                  className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/30 p-2"
+                >
+                  <input type="hidden" name="projectId" value={projectId} />
+                  <input type="hidden" name="taskId" value={task.id} />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      name="title"
+                      required
+                      maxLength={120}
+                      placeholder="New task title"
+                      aria-label="New task title"
+                      className="h-8 flex-1 text-xs"
+                      autoFocus
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        if (event.key === "Escape") setAdding(false);
+                      }}
+                    />
+                    <select
+                      name="priority"
+                      defaultValue="MEDIUM"
+                      aria-label="New task priority"
+                      className={selectClassName}
+                    >
+                      {PRIORITY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setAdding(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <SubmitButton
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      pendingLabel="Adding..."
+                    >
+                      Add task
+                    </SubmitButton>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    stopCardEvents(event);
+                    setAdding(true);
+                  }}
+                  onPointerDown={stopCardEvents}
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Plus className="size-3.5" />
+                  Add task
+                </button>
+              )
+            ) : null}
           </CollapsibleContent>
         </Collapsible>
       ) : null}

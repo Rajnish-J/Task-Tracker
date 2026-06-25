@@ -15,13 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AccentSelect } from "@/components/accent-select";
 import { COLUMN_COLOR_OPTIONS } from "@/lib/constants";
 
 type ProjectColumns = {
@@ -53,7 +47,7 @@ export function ManageColumnsDialog({ project }: { project: ProjectColumns }) {
           </Button>
         }
       />
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Manage columns</DialogTitle>
           <DialogDescription>
@@ -63,7 +57,7 @@ export function ManageColumnsDialog({ project }: { project: ProjectColumns }) {
         <div className="space-y-4">
           {project.columns.map((column) => (
             <div key={column.id} className="rounded-lg border border-border/60 p-4">
-              <form action={updateColumn} className="grid gap-4 lg:grid-cols-[1fr_220px_auto]">
+              <form action={updateColumn} className="grid gap-4 sm:grid-cols-[1fr_200px_auto]">
                 <input type="hidden" name="projectId" value={project.id} />
                 <input type="hidden" name="columnId" value={column.id} />
                 <input type="hidden" name="color" value={colors[column.id]} />
@@ -73,27 +67,15 @@ export function ManageColumnsDialog({ project }: { project: ProjectColumns }) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Accent</label>
-                  <Select
+                  <AccentSelect
                     value={colors[column.id]}
                     onValueChange={(value) =>
-                      value &&
                       setColors((current) => ({
                         ...current,
                         [column.id]: value,
                       }))
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select accent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COLUMN_COLOR_OPTIONS.map((option, index) => (
-                        <SelectItem key={option} value={option}>
-                          Accent {index + 1}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="flex items-end justify-end">
                   <SubmitButton variant="secondary" pendingLabel="Saving...">
