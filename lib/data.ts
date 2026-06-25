@@ -35,6 +35,11 @@ export async function getProjectBoard(projectId: string) {
         with: {
           tasks: {
             orderBy: (tasks) => [asc(tasks.position), asc(tasks.createdAt)],
+            with: {
+              storyTasks: {
+                orderBy: (storyTasks) => [asc(storyTasks.position), asc(storyTasks.createdAt)],
+              },
+            },
           },
         },
       },
@@ -50,7 +55,7 @@ export async function getProjectBoard(projectId: string) {
 
 // Map a column name to a normalized status key. Column names are user-editable,
 // so we match the default lane names case-insensitively and fall back to "other".
-function statusKeyFromColumnName(name: string): "todo" | "inProgress" | "review" | "done" | "other" {
+export function statusKeyFromColumnName(name: string): "todo" | "inProgress" | "review" | "done" | "other" {
   const normalized = name.trim().toLowerCase();
   if (normalized === "to do" || normalized === "todo" || normalized === "backlog") return "todo";
   if (normalized === "in progress" || normalized === "doing") return "inProgress";
@@ -60,7 +65,7 @@ function statusKeyFromColumnName(name: string): "todo" | "inProgress" | "review"
 }
 
 // Tailwind classes used to color status chips/cells, keyed by normalized status.
-const STATUS_COLORS: Record<string, string> = {
+export const STATUS_COLORS: Record<string, string> = {
   todo: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
   inProgress: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
   review: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
@@ -80,7 +85,9 @@ export async function getDashboardData() {
       columns: {
         orderBy: (columns) => [asc(columns.position)],
         with: {
-          tasks: true,
+          tasks: {
+            with: { storyTasks: true },
+          },
         },
       },
     },
@@ -93,6 +100,8 @@ export async function getDashboardData() {
   let done = 0;
   let overdue = 0;
   let dueSoon = 0;
+  let totalStoryTasks = 0;
+  let storyTasksDone = 0;
 
   const priorityCounts: Record<Priority, number> = {
     LOW: 0,
@@ -109,6 +118,8 @@ export async function getDashboardData() {
     let projectTodo = 0;
     let projectInProgress = 0;
     let projectDone = 0;
+    let projectStoryTasks = 0;
+    let projectStoryTasksDone = 0;
 
     for (const column of project.columns) {
       const key = statusKeyFromColumnName(column.name);
@@ -142,6 +153,16 @@ export async function getDashboardData() {
             dueSoon += 1;
           }
         }
+
+        // Aggregate the card's checklist items (storyTasks).
+        for (const storyTask of task.storyTasks) {
+          totalStoryTasks += 1;
+          projectStoryTasks += 1;
+          if (storyTask.isDone) {
+            storyTasksDone += 1;
+            projectStoryTasksDone += 1;
+          }
+        }
       }
     }
 
@@ -154,6 +175,8 @@ export async function getDashboardData() {
       todo: projectTodo,
       inProgress: projectInProgress,
       done: projectDone,
+      totalStoryTasks: projectStoryTasks,
+      storyTasksDone: projectStoryTasksDone,
       updatedAt: project.updatedAt,
     };
   });
@@ -178,8 +201,38 @@ export async function getDashboardData() {
     done,
     overdue,
     dueSoon,
+    totalStoryTasks,
+    storyTasksDone,
     statusBreakdown,
     priorityBreakdown,
+    storyTaskBreakdown: [
+      { name: "Done", count: storyTasksDone },
+      { name: "Open", count: totalStoryTasks - storyTasksDone },
+    ],
     projects: projectRows,
   };
 }
+
+// Full project/column/task/storyTask tree for the cross-project timeline view.
+export async function getTimelineData() {
+  return db.query.projects.findMany({
+    orderBy: (projects) => [asc(projects.name)],
+    with: {
+      columns: {
+        orderBy: (columns) => [asc(columns.position)],
+        with: {
+          tasks: {
+            orderBy: (tasks) => [asc(tasks.createdAt)],
+            with: {
+              storyTasks: {
+                orderBy: (storyTasks) => [asc(storyTasks.createdAt)],
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+export type TimelineData = Awaited<ReturnType<typeof getTimelineData>>;

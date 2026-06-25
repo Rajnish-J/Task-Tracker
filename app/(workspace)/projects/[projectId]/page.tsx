@@ -6,6 +6,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { ManageColumnsDialog } from "@/components/manage-columns-dialog";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { Badge } from "@/components/ui/badge";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getProjectBoard } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function ProjectPage({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <SidebarTrigger className="-ml-1 text-foreground" />
               <span>Projects</span>
               <span>/</span>
               <span className="text-foreground">{project.name}</span>

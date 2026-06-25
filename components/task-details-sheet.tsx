@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { usePathname, useRouter } from "next/navigation";
 
 import { deleteTask, updateTask } from "@/app/actions";
+import { StoryTasksPanel } from "@/components/story-tasks-panel";
 import { SubmitButton } from "@/components/submit-button";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ type TaskDetailsSheetProps = {
   task: {
     id: string;
     title: string;
+    shortDescription: string | null;
     description: string | null;
     notes: string | null;
     priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -43,6 +45,14 @@ type TaskDetailsSheetProps = {
     createdAt: Date;
     updatedAt: Date;
     columnId: string;
+    storyTasks: {
+      id: string;
+      title: string;
+      description: string | null;
+      priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+      dueDate: Date | null;
+      isDone: boolean;
+    }[];
   } | null;
   columns: ColumnOption[];
 };
@@ -85,7 +95,7 @@ function TaskDetailsForm({
           <Badge variant="secondary">
             {PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label}
           </Badge>
-          <Badge variant="outline">Task details</Badge>
+          <Badge variant="outline">User story</Badge>
         </div>
         <DialogTitle className="text-left text-2xl">{task.title}</DialogTitle>
         <DialogDescription className="text-left">
@@ -101,13 +111,27 @@ function TaskDetailsForm({
         <input type="hidden" name="priority" value={selectedPriority} />
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="task-detail-title">
-            Title
+            Title <span className="text-destructive">*</span>
           </label>
           <Input id="task-detail-title" name="title" defaultValue={task.title} required />
         </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor="task-detail-short-description">
+            Collaborators
+          </label>
+          <Input
+            id="task-detail-short-description"
+            name="shortDescription"
+            maxLength={160}
+            defaultValue={task.shortDescription ?? ""}
+            placeholder="Who you're working with or learning from on this."
+          />
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Status</label>
+            <label className="text-sm font-medium">
+              Status <span className="text-destructive">*</span>
+            </label>
             <Select
               value={selectedColumn}
               onValueChange={(value) => value && setSelectedColumn(value)}
@@ -126,7 +150,9 @@ function TaskDetailsForm({
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Priority</label>
+            <label className="text-sm font-medium">
+              Priority <span className="text-destructive">*</span>
+            </label>
             <Select value={selectedPriority} onValueChange={(value) => value && setSelectedPriority(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select priority" />
@@ -178,6 +204,10 @@ function TaskDetailsForm({
           </SubmitButton>
         </div>
       </form>
+
+      <div className="mt-6">
+        <StoryTasksPanel projectId={projectId} storyId={task.id} storyTasks={task.storyTasks} />
+      </div>
 
       <form action={deleteTask} className="mt-3">
         <input type="hidden" name="projectId" value={projectId} />

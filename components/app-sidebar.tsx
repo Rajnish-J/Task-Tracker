@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { ChartColumnBig, FolderKanban, LayoutDashboard } from "lucide-react";
+import { CalendarRange, ChartColumnBig, FolderKanban, LayoutDashboard } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -36,7 +36,7 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
+        <SidebarMenu className="group-data-[collapsible=icon]:hidden">
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
@@ -58,9 +58,12 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
         </SidebarMenu>
         <CreateProjectDialog
           trigger={
-            <Button className="w-full justify-start gap-2">
-              <FolderKanban className="size-4" />
-              New Project
+            <Button
+              title="New Project"
+              className="w-full justify-start gap-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+            >
+              <FolderKanban className="size-4 shrink-0" />
+              <span className="group-data-[collapsible=icon]:hidden">New Project</span>
             </Button>
           }
         />
@@ -75,6 +78,16 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
             >
               <ChartColumnBig className="size-4" />
               <span>Dashboard</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/timeline" />}
+              tooltip="Timeline"
+              isActive={pathname === "/timeline"}
+            >
+              <CalendarRange className="size-4" />
+              <span>Timeline</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

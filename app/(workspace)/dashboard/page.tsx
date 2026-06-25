@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "@/lib/data";
 
@@ -28,6 +29,11 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const data = await getDashboardData();
+
+  const taskCompletionRate =
+    data.totalStoryTasks > 0
+      ? Math.round((data.storyTasksDone / data.totalStoryTasks) * 100)
+      : 0;
 
   const stats = [
     {
@@ -79,6 +85,28 @@ export default async function DashboardPage() {
       icon: CalendarClock,
       accent: "text-amber-600 dark:text-amber-300",
     },
+    {
+      label: "Total tasks",
+      value: data.totalStoryTasks,
+      helper: "Checklist items across all cards",
+      icon: ListChecks,
+      accent: "text-violet-600 dark:text-violet-300",
+    },
+    {
+      label: "Tasks done",
+      value: data.storyTasksDone,
+      helper: "Completed checklist items",
+      icon: CheckCircle2,
+      accent: "text-emerald-600 dark:text-emerald-300",
+    },
+    {
+      label: "Task completion",
+      value: taskCompletionRate,
+      suffix: "%",
+      helper: "Share of checklist items done",
+      icon: CheckCircle2,
+      accent: "text-emerald-600 dark:text-emerald-300",
+    },
   ];
 
   const completionRate =
@@ -90,6 +118,7 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <SidebarTrigger className="-ml-1 text-foreground" />
               <span>Workspace</span>
               <span>/</span>
               <span className="text-foreground">Dashboard</span>
@@ -124,6 +153,7 @@ export default async function DashboardPage() {
               <CardContent className="space-y-1">
                 <div className="text-3xl font-semibold tracking-tight tabular-nums">
                   {stat.value.toLocaleString()}
+                  {"suffix" in stat ? stat.suffix : ""}
                 </div>
                 <p className="text-xs text-muted-foreground">{stat.helper}</p>
               </CardContent>
@@ -135,6 +165,7 @@ export default async function DashboardPage() {
         <DashboardCharts
           statusBreakdown={data.statusBreakdown}
           priorityBreakdown={data.priorityBreakdown}
+          storyTaskBreakdown={data.storyTaskBreakdown}
         />
 
         {/* Per-project table */}
@@ -154,6 +185,7 @@ export default async function DashboardPage() {
                     <TableHead>Project</TableHead>
                     <TableHead className="text-right">Columns</TableHead>
                     <TableHead className="text-right">Cards</TableHead>
+                    <TableHead className="text-right">Tasks</TableHead>
                     <TableHead className="text-right">To do</TableHead>
                     <TableHead className="text-right">In progress</TableHead>
                     <TableHead className="text-right">Done</TableHead>
@@ -176,6 +208,9 @@ export default async function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {project.taskCount}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {project.storyTasksDone}/{project.totalStoryTasks}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         <StatusPill

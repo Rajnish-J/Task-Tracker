@@ -46,9 +46,11 @@ const PRIORITY_COLORS: Record<string, string> = {
 export function DashboardCharts({
   statusBreakdown,
   priorityBreakdown,
+  storyTaskBreakdown,
 }: {
   statusBreakdown: StatusDatum[];
   priorityBreakdown: PriorityDatum[];
+  storyTaskBreakdown: StatusDatum[];
 }) {
   const statusData = React.useMemo(
     () =>
@@ -86,8 +88,32 @@ export function DashboardCharts({
 
   const priorityConfig: ChartConfig = { count: { label: "Cards" } };
 
+  const storyTaskData = React.useMemo(
+    () =>
+      storyTaskBreakdown
+        .filter((d) => d.count > 0)
+        .map((d, i) => ({ ...d, fill: STATUS_PALETTE[i % STATUS_PALETTE.length] })),
+    [storyTaskBreakdown],
+  );
+
+  const totalStoryTasks = React.useMemo(
+    () => storyTaskData.reduce((sum, d) => sum + d.count, 0),
+    [storyTaskData],
+  );
+
+  const storyTaskConfig = React.useMemo(() => {
+    const config: ChartConfig = { count: { label: "Tasks" } };
+    storyTaskBreakdown.forEach((d, i) => {
+      config[d.name] = {
+        label: d.name,
+        color: STATUS_PALETTE[i % STATUS_PALETTE.length],
+      };
+    });
+    return config;
+  }, [storyTaskBreakdown]);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-3">
       <Card>
         <CardHeader>
           <CardTitle>Cards by status</CardTitle>
@@ -189,6 +215,80 @@ export function DashboardCharts({
               </BarChart>
             </ChartContainer>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Task completion</CardTitle>
+          <CardDescription>Checklist items done vs open</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {totalStoryTasks === 0 ? (
+            <EmptyChart />
+          ) : (
+            <ChartContainer
+              config={storyTaskConfig}
+              className="mx-auto aspect-square max-h-[260px]"
+            >
+              <PieChart>
+                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                <Pie
+                  data={storyTaskData}
+                  dataKey="count"
+                  nameKey="name"
+                  innerRadius={60}
+                  strokeWidth={4}
+                >
+                  {storyTaskData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                  <Label
+                    content={({ viewBox }) => {
+                      if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                        return (
+                          <text
+                            x={viewBox.cx}
+                            y={viewBox.cy}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                          >
+                            <tspan
+                              x={viewBox.cx}
+                              y={viewBox.cy}
+                              className="fill-foreground text-3xl font-bold"
+                            >
+                              {totalStoryTasks.toLocaleString()}
+                            </tspan>
+                            <tspan
+                              x={viewBox.cx}
+                              y={(viewBox.cy ?? 0) + 22}
+                              className="fill-muted-foreground text-sm"
+                            >
+                              Tasks
+                            </tspan>
+                          </text>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+          )}
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            {storyTaskData.map((entry) => (
+              <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+                <span
+                  className="size-2.5 rounded-[2px]"
+                  style={{ backgroundColor: entry.fill }}
+                />
+                <span className="text-muted-foreground">{entry.name}</span>
+                <span className="font-medium tabular-nums">{entry.count}</span>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
