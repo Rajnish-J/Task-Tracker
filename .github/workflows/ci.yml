@@ -1,0 +1,51 @@
+name: CI
+
+# Runs validation checks on every pull request targeting main, and on pushes
+# to main. Production deployment is handled by Vercel's Git integration, which
+# only deploys production from the `main` branch. Combined with branch
+# protection that requires this workflow to pass, that means a change only
+# reaches production after it is reviewed, checked, and merged into main.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs for the same branch/PR to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint, typecheck & build
+    runs-on: ubuntu-latest
+
+    env:
+      # next build instantiates the DB pool at import time, which parses (but
+      # does not connect with) DATABASE_URL. All pages are force-dynamic, so no
+      # real database is queried during the build. A throwaway value is enough.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
