@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { ChartColumnBig, FolderKanban, LayoutDashboard } from "lucide-react";
+import { CalendarRange, ChartColumnBig, FolderKanban, LayoutDashboard } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -78,6 +78,16 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
             >
               <ChartColumnBig className="size-4" />
               <span>Dashboard</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/timeline" />}
+              tooltip="Timeline"
+              isActive={pathname === "/timeline"}
+            >
+              <CalendarRange className="size-4" />
+              <span>Timeline</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

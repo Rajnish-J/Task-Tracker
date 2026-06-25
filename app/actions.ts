@@ -634,6 +634,26 @@ export async function toggleStoryTask(formData: FormData) {
   redirect(`/projects/${values.projectId}?task=${values.taskId}`);
 }
 
+// Same as toggleStoryTask but stays on the board (no redirect into the task
+// details sheet) — used by the inline checklist on Kanban cards.
+export async function toggleStoryTaskOnBoard(formData: FormData) {
+  const values = toggleStoryTaskSchema.parse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    storyTaskId: formData.get("storyTaskId"),
+    isDone: formData.get("isDone"),
+  });
+
+  await db
+    .update(storyTasks)
+    .set({ isDone: values.isDone === "true" })
+    .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
+
+  await syncStoryCompletion(values.taskId, values.projectId);
+
+  revalidatePath(`/projects/${values.projectId}`);
+}
+
 export async function deleteStoryTask(formData: FormData) {
   const values = deleteStoryTaskSchema.parse({
     projectId: formData.get("projectId"),

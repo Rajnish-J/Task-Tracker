@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarDays, CircleDot, FileText, ListChecks, Users } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, CircleDot, FileText, ListChecks, Users } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -24,10 +24,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { moveTask } from "@/app/actions";
+import { moveTask, toggleStoryTaskOnBoard } from "@/app/actions";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,7 @@ type Task = {
   notes: string | null;
   priority: Priority;
   dueDate: Date | null;
-  storyTasks: { id: string; isDone: boolean }[];
+  storyTasks: { id: string; title: string; priority: Priority; isDone: boolean }[];
 };
 
 type Column = {
@@ -304,7 +305,7 @@ function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
       }}
       className="cursor-grab touch-none rounded-lg border border-border/60 bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
     >
-      <TaskCardContent task={task} />
+      <TaskCardContent task={task} projectId={projectId} />
     </div>
   );
 }
@@ -322,10 +323,15 @@ function TaskCard({ task, dragging }: { task: Task; dragging?: boolean }) {
   );
 }
 
-function TaskCardContent({ task }: { task: Task }) {
+function TaskCardContent({ task, projectId }: { task: Task; projectId?: string }) {
+  const [tasksOpen, setTasksOpen] = React.useState(false);
   const totalTasks = task.storyTasks.length;
   const doneTasks = task.storyTasks.filter((child) => child.isDone).length;
   const allDone = totalTasks > 0 && doneTasks === totalTasks;
+
+  // Keep the card's drag/click wrapper from reacting to interactions inside the
+  // expandable checklist (expanding, toggling a checkbox).
+  const stopCardEvents = (event: React.SyntheticEvent) => event.stopPropagation();
 
   return (
     <div className="space-y-3">
@@ -336,16 +342,23 @@ function TaskCardContent({ task }: { task: Task }) {
         </Badge>
       </div>
       {totalTasks > 0 ? (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+        <Collapsible open={tasksOpen} onOpenChange={setTasksOpen} className="space-y-1.5">
+          <CollapsibleTrigger
+            onClick={stopCardEvents}
+            onPointerDown={stopCardEvents}
+            className="flex w-full items-center justify-between gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+          >
             <span className="inline-flex items-center gap-1.5">
+              <ChevronDown
+                className={cn("size-3.5 transition-transform", tasksOpen && "rotate-180")}
+              />
               <ListChecks className="size-3.5" />
               Tasks
             </span>
             <span className={cn(allDone && "text-emerald-600 dark:text-emerald-400")}>
               {doneTasks}/{totalTasks}
             </span>
-          </div>
+          </CollapsibleTrigger>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className={cn(
@@ -355,7 +368,59 @@ function TaskCardContent({ task }: { task: Task }) {
               style={{ width: `${(doneTasks / totalTasks) * 100}%` }}
             />
           </div>
-        </div>
+          <CollapsibleContent>
+            <ul className="space-y-1.5 pt-1">
+              {task.storyTasks.map((storyTask) => (
+                <li key={storyTask.id} className="flex items-center gap-2">
+                  {projectId ? (
+                    <form
+                      action={toggleStoryTaskOnBoard}
+                      onClick={stopCardEvents}
+                      onPointerDown={stopCardEvents}
+                      className="contents"
+                    >
+                      <input type="hidden" name="projectId" value={projectId} />
+                      <input type="hidden" name="taskId" value={task.id} />
+                      <input type="hidden" name="storyTaskId" value={storyTask.id} />
+                      <input type="hidden" name="isDone" value={storyTask.isDone ? "false" : "true"} />
+                      <button
+                        type="submit"
+                        aria-label={storyTask.isDone ? "Mark task as not done" : "Mark task as done"}
+                        className={cn(
+                          "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
+                          storyTask.isDone
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-input hover:border-primary",
+                        )}
+                      >
+                        {storyTask.isDone ? <Check className="size-3" /> : null}
+                      </button>
+                    </form>
+                  ) : (
+                    <span
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center rounded border",
+                        storyTask.isDone
+                          ? "border-emerald-500 bg-emerald-500 text-white"
+                          : "border-input",
+                      )}
+                    >
+                      {storyTask.isDone ? <Check className="size-3" /> : null}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "line-clamp-1 text-xs",
+                      storyTask.isDone && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {storyTask.title}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
       {task.shortDescription ? (
         <p className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-xs font-medium text-foreground/80">
