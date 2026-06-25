@@ -6,8 +6,9 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { COLUMN_COLOR_OPTIONS, DEFAULT_COLUMNS } from "@/lib/constants";
+import { statusKeyFromColumnName } from "@/lib/data";
 import { db } from "@/lib/db";
-import { columns, PRIORITY_VALUES, projects, tasks } from "@/lib/db/schema";
+import { columns, PRIORITY_VALUES, projects, storyTasks, tasks } from "@/lib/db/schema";
 import { slugify } from "@/lib/utils/slugify";
 
 const createProjectSchema = z.object({
@@ -61,6 +62,38 @@ const moveTaskSchema = z.object({
   taskId: z.string().min(1),
   toColumnId: z.string().min(1),
   toIndex: z.number().int().min(0),
+});
+
+const createStoryTaskSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  title: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(600).optional(),
+  priority: z.enum(PRIORITY_VALUES),
+  dueDate: z.string().optional(),
+});
+
+const updateStoryTaskSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  storyTaskId: z.string().min(1),
+  title: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(600).optional(),
+  priority: z.enum(PRIORITY_VALUES),
+  dueDate: z.string().optional(),
+});
+
+const toggleStoryTaskSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  storyTaskId: z.string().min(1),
+  isDone: z.enum(["true", "false"]),
+});
+
+const deleteStoryTaskSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  storyTaskId: z.string().min(1),
 });
 
 // Large offset used to temporarily park positions out of the way so that
@@ -450,4 +483,181 @@ export async function moveTask(input: z.infer<typeof moveTaskSchema>) {
   });
 
   revalidatePath(`/projects/${values.projectId}`);
+}
+
+// Keep a story card's column in sync with its child tasks: when every child is
+// done the card moves to the project's Done lane, and if a child is reopened a
+// card sitting in Done moves back to the first non-Done lane. Stories without
+// any child tasks are left where the user put them.
+async function syncStoryCompletion(storyId: string, projectId: string) {
+  const story = await db.query.tasks.findFirst({
+    where: and(eq(tasks.id, storyId), eq(tasks.projectId, projectId)),
+    columns: { id: true, columnId: true },
+    with: {
+      storyTasks: { columns: { isDone: true } },
+    },
+  });
+
+  if (!story || story.storyTasks.length === 0) {
+    return;
+  }
+
+  const allDone = story.storyTasks.every((child) => child.isDone);
+
+  const projectColumns = await db
+    .select({ id: columns.id, name: columns.name })
+    .from(columns)
+    .where(eq(columns.projectId, projectId))
+    .orderBy(asc(columns.position));
+
+  const doneColumn = projectColumns.find(
+    (column) => statusKeyFromColumnName(column.name) === "done",
+  );
+  if (!doneColumn) {
+    return;
+  }
+
+  let targetColumnId: string | undefined;
+  if (allDone && story.columnId !== doneColumn.id) {
+    targetColumnId = doneColumn.id;
+  } else if (!allDone && story.columnId === doneColumn.id) {
+    const firstNonDone = projectColumns.find((column) => column.id !== doneColumn.id);
+    targetColumnId = firstNonDone?.id;
+  }
+
+  if (!targetColumnId || targetColumnId === story.columnId) {
+    return;
+  }
+
+  const sourceColumnId = story.columnId;
+  const destinationColumnId = targetColumnId;
+
+  await db.transaction(async (tx) => {
+    const [lastTask] = await tx
+      .select({ position: tasks.position })
+      .from(tasks)
+      .where(eq(tasks.columnId, destinationColumnId))
+      .orderBy(desc(tasks.position))
+      .limit(1);
+
+    await tx
+      .update(tasks)
+      .set({ columnId: destinationColumnId, position: (lastTask?.position ?? -1) + 1 })
+      .where(eq(tasks.id, storyId));
+
+    const previousColumnTasks = await tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(eq(tasks.columnId, sourceColumnId))
+      .orderBy(asc(tasks.position));
+
+    for (const [index, task] of previousColumnTasks.entries()) {
+      await tx.update(tasks).set({ position: index }).where(eq(tasks.id, task.id));
+    }
+  });
+}
+
+export async function createStoryTask(formData: FormData) {
+  const values = createStoryTaskSchema.parse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    title: formData.get("title"),
+    description: formData.get("description") || undefined,
+    priority: formData.get("priority"),
+    dueDate: formData.get("dueDate") || undefined,
+  });
+
+  const [lastChild] = await db
+    .select({ position: storyTasks.position })
+    .from(storyTasks)
+    .where(eq(storyTasks.taskId, values.taskId))
+    .orderBy(desc(storyTasks.position))
+    .limit(1);
+
+  await db.insert(storyTasks).values({
+    title: values.title,
+    description: values.description || null,
+    priority: values.priority,
+    dueDate: parseOptionalDate(values.dueDate),
+    taskId: values.taskId,
+    position: (lastChild?.position ?? -1) + 1,
+  });
+
+  // A newly added (incomplete) child can take a completed story out of Done.
+  await syncStoryCompletion(values.taskId, values.projectId);
+
+  revalidatePath(`/projects/${values.projectId}`);
+  redirect(`/projects/${values.projectId}?task=${values.taskId}`);
+}
+
+export async function updateStoryTask(formData: FormData) {
+  const values = updateStoryTaskSchema.parse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    storyTaskId: formData.get("storyTaskId"),
+    title: formData.get("title"),
+    description: formData.get("description") || undefined,
+    priority: formData.get("priority"),
+    dueDate: formData.get("dueDate") || undefined,
+  });
+
+  await db
+    .update(storyTasks)
+    .set({
+      title: values.title,
+      description: values.description || null,
+      priority: values.priority,
+      dueDate: parseOptionalDate(values.dueDate),
+    })
+    .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
+
+  revalidatePath(`/projects/${values.projectId}`);
+  redirect(`/projects/${values.projectId}?task=${values.taskId}`);
+}
+
+export async function toggleStoryTask(formData: FormData) {
+  const values = toggleStoryTaskSchema.parse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    storyTaskId: formData.get("storyTaskId"),
+    isDone: formData.get("isDone"),
+  });
+
+  await db
+    .update(storyTasks)
+    .set({ isDone: values.isDone === "true" })
+    .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
+
+  await syncStoryCompletion(values.taskId, values.projectId);
+
+  revalidatePath(`/projects/${values.projectId}`);
+  redirect(`/projects/${values.projectId}?task=${values.taskId}`);
+}
+
+export async function deleteStoryTask(formData: FormData) {
+  const values = deleteStoryTaskSchema.parse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    storyTaskId: formData.get("storyTaskId"),
+  });
+
+  await db
+    .delete(storyTasks)
+    .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
+
+  const remaining = await db
+    .select({ id: storyTasks.id })
+    .from(storyTasks)
+    .where(eq(storyTasks.taskId, values.taskId))
+    .orderBy(asc(storyTasks.position));
+
+  for (const [index, child] of remaining.entries()) {
+    await db.update(storyTasks).set({ position: index }).where(eq(storyTasks.id, child.id));
+  }
+
+  // Removing the last incomplete child may complete the story (auto-move to Done).
+  await syncStoryCompletion(values.taskId, values.projectId);
+
+  revalidatePath(`/projects/${values.projectId}`);
+  redirect(`/projects/${values.projectId}?task=${values.taskId}`);
 }

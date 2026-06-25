@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { usePathname, useRouter } from "next/navigation";
 
 import { deleteTask, updateTask } from "@/app/actions";
+import { StoryTasksPanel } from "@/components/story-tasks-panel";
 import { SubmitButton } from "@/components/submit-button";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,14 @@ type TaskDetailsSheetProps = {
     createdAt: Date;
     updatedAt: Date;
     columnId: string;
+    storyTasks: {
+      id: string;
+      title: string;
+      description: string | null;
+      priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+      dueDate: Date | null;
+      isDone: boolean;
+    }[];
   } | null;
   columns: ColumnOption[];
 };
@@ -86,7 +95,7 @@ function TaskDetailsForm({
           <Badge variant="secondary">
             {PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label}
           </Badge>
-          <Badge variant="outline">Task details</Badge>
+          <Badge variant="outline">User story</Badge>
         </div>
         <DialogTitle className="text-left text-2xl">{task.title}</DialogTitle>
         <DialogDescription className="text-left">
@@ -195,6 +204,10 @@ function TaskDetailsForm({
           </SubmitButton>
         </div>
       </form>
+
+      <div className="mt-6">
+        <StoryTasksPanel projectId={projectId} storyId={task.id} storyTasks={task.storyTasks} />
+      </div>
 
       <form action={deleteTask} className="mt-3">
         <input type="hidden" name="projectId" value={projectId} />

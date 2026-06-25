@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarDays, CircleDot, FileText, Users } from "lucide-react";
+import { CalendarDays, CircleDot, FileText, ListChecks, Users } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,7 @@ type Task = {
   notes: string | null;
   priority: Priority;
   dueDate: Date | null;
+  storyTasks: { id: string; isDone: boolean }[];
 };
 
 type Column = {
@@ -322,6 +323,10 @@ function TaskCard({ task, dragging }: { task: Task; dragging?: boolean }) {
 }
 
 function TaskCardContent({ task }: { task: Task }) {
+  const totalTasks = task.storyTasks.length;
+  const doneTasks = task.storyTasks.filter((child) => child.isDone).length;
+  const allDone = totalTasks > 0 && doneTasks === totalTasks;
+
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
@@ -330,6 +335,28 @@ function TaskCardContent({ task }: { task: Task }) {
           {task.priority.toLowerCase()}
         </Badge>
       </div>
+      {totalTasks > 0 ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <ListChecks className="size-3.5" />
+              Tasks
+            </span>
+            <span className={cn(allDone && "text-emerald-600 dark:text-emerald-400")}>
+              {doneTasks}/{totalTasks}
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all",
+                allDone ? "bg-emerald-500" : "bg-primary",
+              )}
+              style={{ width: `${(doneTasks / totalTasks) * 100}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
       {task.shortDescription ? (
         <p className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-xs font-medium text-foreground/80">
           <Users className="size-3.5 shrink-0" />

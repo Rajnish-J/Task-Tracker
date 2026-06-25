@@ -35,6 +35,11 @@ export async function getProjectBoard(projectId: string) {
         with: {
           tasks: {
             orderBy: (tasks) => [asc(tasks.position), asc(tasks.createdAt)],
+            with: {
+              storyTasks: {
+                orderBy: (storyTasks) => [asc(storyTasks.position), asc(storyTasks.createdAt)],
+              },
+            },
           },
         },
       },
@@ -50,7 +55,7 @@ export async function getProjectBoard(projectId: string) {
 
 // Map a column name to a normalized status key. Column names are user-editable,
 // so we match the default lane names case-insensitively and fall back to "other".
-function statusKeyFromColumnName(name: string): "todo" | "inProgress" | "review" | "done" | "other" {
+export function statusKeyFromColumnName(name: string): "todo" | "inProgress" | "review" | "done" | "other" {
   const normalized = name.trim().toLowerCase();
   if (normalized === "to do" || normalized === "todo" || normalized === "backlog") return "todo";
   if (normalized === "in progress" || normalized === "doing") return "inProgress";
