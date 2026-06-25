@@ -14,7 +14,7 @@ type AppShellProps = {
 
 export function AppShell({ children, projects }: AppShellProps) {
   return (
-    <SidebarProvider defaultOpen={false}>
+    <SidebarProvider defaultOpen>
       <AppSidebar projects={projects} />
       <SidebarInset className="min-h-svh min-w-0 overflow-hidden">{children}</SidebarInset>
     </SidebarProvider>

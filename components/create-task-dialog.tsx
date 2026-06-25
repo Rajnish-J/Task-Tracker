@@ -72,13 +72,26 @@ export function CreateTaskDialog({
           <input type="hidden" name="priority" value={priority} />
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="task-title">
-              Task title
+              Task title <span className="text-destructive">*</span>
             </label>
             <Input id="task-title" name="title" placeholder="Prepare launch checklist" required />
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="task-short-description">
+              Collaborators
+            </label>
+            <Input
+              id="task-short-description"
+              name="shortDescription"
+              maxLength={160}
+              placeholder="Who you're working with or learning from on this."
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Column</label>
+              <label className="text-sm font-medium">
+                Status <span className="text-destructive">*</span>
+              </label>
               <Select
                 value={selectedColumn}
                 onValueChange={(value) => value && setSelectedColumn(value)}
@@ -97,7 +110,9 @@ export function CreateTaskDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Priority</label>
+              <label className="text-sm font-medium">
+                Priority <span className="text-destructive">*</span>
+              </label>
               <Select value={priority} onValueChange={(value) => value && setPriority(value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select priority" />

@@ -59,6 +59,7 @@ export const tasks = pgTable(
       .primaryKey()
       .$defaultFn(() => createId()),
     title: text("title").notNull(),
+    shortDescription: text("shortDescription"),
     description: text("description"),
     notes: text("notes"),
     priority: priorityEnum("priority").notNull().default("MEDIUM"),

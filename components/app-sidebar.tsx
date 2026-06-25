@@ -36,7 +36,7 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
+        <SidebarMenu className="group-data-[collapsible=icon]:hidden">
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
@@ -58,9 +58,12 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
         </SidebarMenu>
         <CreateProjectDialog
           trigger={
-            <Button className="w-full justify-start gap-2">
-              <FolderKanban className="size-4" />
-              New Project
+            <Button
+              title="New Project"
+              className="w-full justify-start gap-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+            >
+              <FolderKanban className="size-4 shrink-0" />
+              <span className="group-data-[collapsible=icon]:hidden">New Project</span>
             </Button>
           }
         />

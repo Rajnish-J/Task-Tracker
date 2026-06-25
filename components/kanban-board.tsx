@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarDays, CircleDot, FileText } from "lucide-react";
+import { CalendarDays, CircleDot, FileText, Users } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -36,6 +36,7 @@ type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 type Task = {
   id: string;
   title: string;
+  shortDescription: string | null;
   description: string | null;
   notes: string | null;
   priority: Priority;
@@ -329,6 +330,12 @@ function TaskCardContent({ task }: { task: Task }) {
           {task.priority.toLowerCase()}
         </Badge>
       </div>
+      {task.shortDescription ? (
+        <p className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-xs font-medium text-foreground/80">
+          <Users className="size-3.5 shrink-0" />
+          <span className="line-clamp-1">{task.shortDescription}</span>
+        </p>
+      ) : null}
       {task.description ? (
         <p className="line-clamp-3 text-sm text-muted-foreground">{task.description}</p>
       ) : null}

@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "@/lib/data";
 
@@ -90,6 +91,7 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <SidebarTrigger className="-ml-1 text-foreground" />
               <span>Workspace</span>
               <span>/</span>
               <span className="text-foreground">Dashboard</span>

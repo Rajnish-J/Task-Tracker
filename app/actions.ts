@@ -37,6 +37,7 @@ const createTaskSchema = z.object({
   projectId: z.string().min(1),
   columnId: z.string().min(1),
   title: z.string().trim().min(2).max(120),
+  shortDescription: z.string().trim().max(160).optional(),
   description: z.string().trim().max(600).optional(),
   notes: z.string().trim().max(1200).optional(),
   priority: z.enum(PRIORITY_VALUES),
@@ -47,6 +48,7 @@ const updateTaskSchema = z.object({
   projectId: z.string().min(1),
   taskId: z.string().min(1),
   title: z.string().trim().min(2).max(120),
+  shortDescription: z.string().trim().max(160).optional(),
   description: z.string().trim().max(600).optional(),
   notes: z.string().trim().max(1200).optional(),
   priority: z.enum(PRIORITY_VALUES),
@@ -239,6 +241,7 @@ export async function createTask(formData: FormData) {
     projectId: formData.get("projectId"),
     columnId: formData.get("columnId"),
     title: formData.get("title"),
+    shortDescription: formData.get("shortDescription") || undefined,
     description: formData.get("description") || undefined,
     notes: formData.get("notes") || undefined,
     priority: formData.get("priority"),
@@ -254,6 +257,7 @@ export async function createTask(formData: FormData) {
 
   await db.insert(tasks).values({
     title: values.title,
+    shortDescription: values.shortDescription || null,
     description: values.description || null,
     notes: values.notes || null,
     priority: values.priority,
@@ -272,6 +276,7 @@ export async function updateTask(formData: FormData) {
     projectId: formData.get("projectId"),
     taskId: formData.get("taskId"),
     title: formData.get("title"),
+    shortDescription: formData.get("shortDescription") || undefined,
     description: formData.get("description") || undefined,
     notes: formData.get("notes") || undefined,
     priority: formData.get("priority"),
@@ -308,6 +313,7 @@ export async function updateTask(formData: FormData) {
       .update(tasks)
       .set({
         title: values.title,
+        shortDescription: values.shortDescription || null,
         description: values.description || null,
         notes: values.notes || null,
         priority: values.priority,
