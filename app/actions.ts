@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { Priority } from "@prisma/client";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { COLUMN_COLOR_OPTIONS, DEFAULT_COLUMNS } from "@/lib/constants";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { columns, PRIORITY_VALUES, projects, tasks } from "@/lib/db/schema";
 import { slugify } from "@/lib/utils/slugify";
 
 const createProjectSchema = z.object({
@@ -38,7 +39,7 @@ const createTaskSchema = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().max(600).optional(),
   notes: z.string().trim().max(1200).optional(),
-  priority: z.nativeEnum(Priority),
+  priority: z.enum(PRIORITY_VALUES),
   dueDate: z.string().optional(),
 });
 
@@ -48,10 +49,22 @@ const updateTaskSchema = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().max(600).optional(),
   notes: z.string().trim().max(1200).optional(),
-  priority: z.nativeEnum(Priority),
+  priority: z.enum(PRIORITY_VALUES),
   columnId: z.string().min(1),
   dueDate: z.string().optional(),
 });
+
+const moveTaskSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  toColumnId: z.string().min(1),
+  toIndex: z.number().int().min(0),
+});
+
+// Large offset used to temporarily park positions out of the way so that
+// reordering within a column never trips the (columnId, position) unique
+// constraint mid-transaction.
+const POSITION_OFFSET = 1_000_000;
 
 function parseOptionalDate(value?: string) {
   if (!value?.trim()) {
@@ -66,7 +79,12 @@ async function resolveUniqueSlug(name: string) {
   let slug = baseSlug;
   let suffix = 1;
 
-  while (await prisma.project.findUnique({ where: { slug } })) {
+  while (
+    await db.query.projects.findFirst({
+      where: eq(projects.slug, slug),
+      columns: { id: true },
+    })
+  ) {
     suffix += 1;
     slug = `${baseSlug}-${suffix}`;
   }
@@ -82,19 +100,26 @@ export async function createProject(formData: FormData) {
 
   const slug = await resolveUniqueSlug(values.name);
 
-  const project = await prisma.project.create({
-    data: {
-      name: values.name,
-      slug,
-      description: values.description || null,
-      columns: {
-        create: DEFAULT_COLUMNS.map((column, index) => ({
-          name: column.name,
-          color: column.color,
-          position: index,
-        })),
-      },
-    },
+  const project = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(projects)
+      .values({
+        name: values.name,
+        slug,
+        description: values.description || null,
+      })
+      .returning({ id: projects.id });
+
+    await tx.insert(columns).values(
+      DEFAULT_COLUMNS.map((column, index) => ({
+        projectId: created.id,
+        name: column.name,
+        color: column.color,
+        position: index,
+      })),
+    );
+
+    return created;
   });
 
   revalidatePath("/");
@@ -108,18 +133,18 @@ export async function createColumn(formData: FormData) {
     color: formData.get("color") || undefined,
   });
 
-  const lastColumn = await prisma.column.findFirst({
-    where: { projectId: values.projectId },
-    orderBy: { position: "desc" },
-  });
+  const [lastColumn] = await db
+    .select({ position: columns.position })
+    .from(columns)
+    .where(eq(columns.projectId, values.projectId))
+    .orderBy(desc(columns.position))
+    .limit(1);
 
-  await prisma.column.create({
-    data: {
-      projectId: values.projectId,
-      name: values.name,
-      color: values.color ?? COLUMN_COLOR_OPTIONS[0],
-      position: (lastColumn?.position ?? -1) + 1,
-    },
+  await db.insert(columns).values({
+    projectId: values.projectId,
+    name: values.name,
+    color: values.color ?? COLUMN_COLOR_OPTIONS[0],
+    position: (lastColumn?.position ?? -1) + 1,
   });
 
   revalidatePath(`/projects/${values.projectId}`);
@@ -134,13 +159,10 @@ export async function updateColumn(formData: FormData) {
     color: formData.get("color"),
   });
 
-  await prisma.column.update({
-    where: { id: values.columnId },
-    data: {
-      name: values.name,
-      color: values.color,
-    },
-  });
+  await db
+    .update(columns)
+    .set({ name: values.name, color: values.color })
+    .where(eq(columns.id, values.columnId));
 
   revalidatePath(`/projects/${values.projectId}`);
   redirect(`/projects/${values.projectId}`);
@@ -152,57 +174,59 @@ export async function deleteColumn(formData: FormData) {
     columnId: formData.get("columnId"),
   });
 
-  const columns = await prisma.column.findMany({
-    where: { projectId: values.projectId },
-    orderBy: { position: "asc" },
-    select: { id: true, position: true },
-  });
+  const projectColumns = await db
+    .select({ id: columns.id, position: columns.position })
+    .from(columns)
+    .where(eq(columns.projectId, values.projectId))
+    .orderBy(asc(columns.position));
 
-  if (columns.length <= 1) {
+  if (projectColumns.length <= 1) {
     revalidatePath(`/projects/${values.projectId}`);
     redirect(`/projects/${values.projectId}`);
   }
 
-  const fallbackColumn = columns.find((column) => column.id !== values.columnId);
+  const fallbackColumn = projectColumns.find(
+    (column) => column.id !== values.columnId,
+  );
 
-  await prisma.$transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     if (fallbackColumn) {
-      const lastTask = await tx.task.findFirst({
-        where: { columnId: fallbackColumn.id },
-        orderBy: { position: "desc" },
-        select: { position: true },
-      });
+      const [lastTask] = await tx
+        .select({ position: tasks.position })
+        .from(tasks)
+        .where(eq(tasks.columnId, fallbackColumn.id))
+        .orderBy(desc(tasks.position))
+        .limit(1);
 
-      const tasksToMove = await tx.task.findMany({
-        where: { columnId: values.columnId },
-        orderBy: { position: "asc" },
-        select: { id: true },
-      });
+      const tasksToMove = await tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.columnId, values.columnId))
+        .orderBy(asc(tasks.position));
 
-      for (const [index, task] of tasksToMove.entries()) {
-        await tx.task.update({
-          where: { id: task.id },
-          data: {
-            columnId: fallbackColumn.id,
-            position: (lastTask?.position ?? -1) + index + 1,
-          },
-        });
+      let nextPosition = (lastTask?.position ?? -1) + 1;
+      for (const task of tasksToMove) {
+        await tx
+          .update(tasks)
+          .set({ columnId: fallbackColumn.id, position: nextPosition })
+          .where(eq(tasks.id, task.id));
+        nextPosition += 1;
       }
     }
 
-    await tx.column.delete({ where: { id: values.columnId } });
+    await tx.delete(columns).where(eq(columns.id, values.columnId));
 
-    const remaining = await tx.column.findMany({
-      where: { projectId: values.projectId },
-      orderBy: { position: "asc" },
-      select: { id: true },
-    });
+    const remaining = await tx
+      .select({ id: columns.id })
+      .from(columns)
+      .where(eq(columns.projectId, values.projectId))
+      .orderBy(asc(columns.position));
 
     for (const [index, column] of remaining.entries()) {
-      await tx.column.update({
-        where: { id: column.id },
-        data: { position: index },
-      });
+      await tx
+        .update(columns)
+        .set({ position: index })
+        .where(eq(columns.id, column.id));
     }
   });
 
@@ -221,23 +245,22 @@ export async function createTask(formData: FormData) {
     dueDate: formData.get("dueDate") || undefined,
   });
 
-  const lastTask = await prisma.task.findFirst({
-    where: { columnId: values.columnId },
-    orderBy: { position: "desc" },
-    select: { position: true },
-  });
+  const [lastTask] = await db
+    .select({ position: tasks.position })
+    .from(tasks)
+    .where(eq(tasks.columnId, values.columnId))
+    .orderBy(desc(tasks.position))
+    .limit(1);
 
-  await prisma.task.create({
-    data: {
-      title: values.title,
-      description: values.description || null,
-      notes: values.notes || null,
-      priority: values.priority,
-      dueDate: parseOptionalDate(values.dueDate),
-      projectId: values.projectId,
-      columnId: values.columnId,
-      position: (lastTask?.position ?? -1) + 1,
-    },
+  await db.insert(tasks).values({
+    title: values.title,
+    description: values.description || null,
+    notes: values.notes || null,
+    priority: values.priority,
+    dueDate: parseOptionalDate(values.dueDate),
+    projectId: values.projectId,
+    columnId: values.columnId,
+    position: (lastTask?.position ?? -1) + 1,
   });
 
   revalidatePath(`/projects/${values.projectId}`);
@@ -256,27 +279,34 @@ export async function updateTask(formData: FormData) {
     dueDate: formData.get("dueDate") || undefined,
   });
 
-  const existingTask = await prisma.task.findUniqueOrThrow({
-    where: { id: values.taskId },
-    select: { columnId: true },
+  const existingTask = await db.query.tasks.findFirst({
+    where: eq(tasks.id, values.taskId),
+    columns: { columnId: true },
   });
 
-  await prisma.$transaction(async (tx) => {
+  if (!existingTask) {
+    redirect(`/projects/${values.projectId}`);
+  }
+
+  const movedColumn = existingTask.columnId !== values.columnId;
+
+  await db.transaction(async (tx) => {
     let positionUpdate: number | undefined;
 
-    if (existingTask.columnId !== values.columnId) {
-      const lastTask = await tx.task.findFirst({
-        where: { columnId: values.columnId },
-        orderBy: { position: "desc" },
-        select: { position: true },
-      });
+    if (movedColumn) {
+      const [lastTask] = await tx
+        .select({ position: tasks.position })
+        .from(tasks)
+        .where(eq(tasks.columnId, values.columnId))
+        .orderBy(desc(tasks.position))
+        .limit(1);
 
       positionUpdate = (lastTask?.position ?? -1) + 1;
     }
 
-    await tx.task.update({
-      where: { id: values.taskId },
-      data: {
+    await tx
+      .update(tasks)
+      .set({
         title: values.title,
         description: values.description || null,
         notes: values.notes || null,
@@ -284,21 +314,21 @@ export async function updateTask(formData: FormData) {
         dueDate: parseOptionalDate(values.dueDate),
         columnId: values.columnId,
         ...(positionUpdate !== undefined ? { position: positionUpdate } : {}),
-      },
-    });
+      })
+      .where(eq(tasks.id, values.taskId));
 
-    if (existingTask.columnId !== values.columnId) {
-      const previousColumnTasks = await tx.task.findMany({
-        where: { columnId: existingTask.columnId },
-        orderBy: { position: "asc" },
-        select: { id: true },
-      });
+    if (movedColumn) {
+      const previousColumnTasks = await tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.columnId, existingTask.columnId))
+        .orderBy(asc(tasks.position));
 
       for (const [index, task] of previousColumnTasks.entries()) {
-        await tx.task.update({
-          where: { id: task.id },
-          data: { position: index },
-        });
+        await tx
+          .update(tasks)
+          .set({ position: index })
+          .where(eq(tasks.id, task.id));
       }
     }
   });
@@ -311,28 +341,107 @@ export async function deleteTask(formData: FormData) {
   const projectId = z.string().min(1).parse(formData.get("projectId"));
   const taskId = z.string().min(1).parse(formData.get("taskId"));
 
-  const task = await prisma.task.findUniqueOrThrow({
-    where: { id: taskId },
-    select: { columnId: true },
+  const task = await db.query.tasks.findFirst({
+    where: eq(tasks.id, taskId),
+    columns: { columnId: true },
   });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.task.delete({ where: { id: taskId } });
+  if (!task) {
+    redirect(`/projects/${projectId}`);
+  }
 
-    const remaining = await tx.task.findMany({
-      where: { columnId: task.columnId },
-      orderBy: { position: "asc" },
-      select: { id: true },
-    });
+  await db.transaction(async (tx) => {
+    await tx.delete(tasks).where(eq(tasks.id, taskId));
+
+    const remaining = await tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(eq(tasks.columnId, task.columnId))
+      .orderBy(asc(tasks.position));
 
     for (const [index, current] of remaining.entries()) {
-      await tx.task.update({
-        where: { id: current.id },
-        data: { position: index },
-      });
+      await tx
+        .update(tasks)
+        .set({ position: index })
+        .where(eq(tasks.id, current.id));
     }
   });
 
   revalidatePath(`/projects/${projectId}`);
   redirect(`/projects/${projectId}`);
+}
+
+export async function moveTask(input: z.infer<typeof moveTaskSchema>) {
+  const values = moveTaskSchema.parse(input);
+
+  await db.transaction(async (tx) => {
+    const task = await tx.query.tasks.findFirst({
+      where: and(eq(tasks.id, values.taskId), eq(tasks.projectId, values.projectId)),
+      columns: { id: true, columnId: true },
+    });
+
+    if (!task) {
+      return;
+    }
+
+    const sourceColumnId = task.columnId;
+    const sameColumn = sourceColumnId === values.toColumnId;
+
+    // Final ordering for the target column: existing tasks (minus the moved
+    // one) with the moved task spliced in at toIndex.
+    const targetTasks = await tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(eq(tasks.columnId, values.toColumnId))
+      .orderBy(asc(tasks.position));
+
+    const targetOrder = targetTasks
+      .map((t) => t.id)
+      .filter((id) => id !== values.taskId);
+    const insertAt = Math.min(values.toIndex, targetOrder.length);
+    targetOrder.splice(insertAt, 0, values.taskId);
+
+    // Source column final ordering (only relevant on a cross-column move).
+    const sourceOrder = sameColumn
+      ? []
+      : (
+          await tx
+            .select({ id: tasks.id })
+            .from(tasks)
+            .where(eq(tasks.columnId, sourceColumnId))
+            .orderBy(asc(tasks.position))
+        )
+          .map((t) => t.id)
+          .filter((id) => id !== values.taskId);
+
+    // Phase 1: park every affected task at a high, still-unique position so the
+    // final assignment below can't collide on (columnId, position).
+    const affectedIds = sameColumn
+      ? targetOrder
+      : [...sourceOrder, ...targetOrder];
+    for (const [index, id] of affectedIds.entries()) {
+      await tx
+        .update(tasks)
+        .set({ position: POSITION_OFFSET + index })
+        .where(eq(tasks.id, id));
+    }
+
+    // Phase 2: assign contiguous final positions; the moved task also adopts
+    // the target column id.
+    for (const [index, id] of sourceOrder.entries()) {
+      await tx
+        .update(tasks)
+        .set({ position: index, columnId: sourceColumnId })
+        .where(eq(tasks.id, id));
+    }
+
+    for (const [index, id] of targetOrder.entries()) {
+      await tx
+        .update(tasks)
+        .set({ position: index, columnId: values.toColumnId })
+        .where(eq(tasks.id, id));
+    }
+  });
+
+  revalidatePath(`/projects/${values.projectId}`);
 }

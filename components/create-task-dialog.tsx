@@ -79,7 +79,11 @@ export function CreateTaskDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Column</label>
-              <Select value={selectedColumn} onValueChange={(value) => value && setSelectedColumn(value)}>
+              <Select
+                value={selectedColumn}
+                onValueChange={(value) => value && setSelectedColumn(value)}
+                items={columns.map((column) => ({ label: column.name, value: column.id }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a column" />
                 </SelectTrigger>

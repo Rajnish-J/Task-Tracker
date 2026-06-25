@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { FolderKanban, LayoutDashboard } from "lucide-react";
+import { useParams, usePathname } from "next/navigation";
+import { ChartColumnBig, FolderKanban, LayoutDashboard } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -12,9 +12,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -34,6 +31,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 
 export function AppSidebar({ projects, ...props }: AppSidebarProps) {
   const params = useParams<{ projectId?: string }>();
+  const pathname = usePathname();
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -68,19 +66,18 @@ export function AppSidebar({ projects, ...props }: AppSidebarProps) {
         />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/" />} tooltip="All projects">
-                  <LayoutDashboard className="size-4" />
-                  <span>Overview</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <SidebarMenu className="px-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/dashboard" />}
+              tooltip="Dashboard"
+              isActive={pathname === "/dashboard"}
+            >
+              <ChartColumnBig className="size-4" />
+              <span>Dashboard</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <NavProjects currentProjectId={params?.projectId} projects={projects} />
       </SidebarContent>
       <SidebarFooter>

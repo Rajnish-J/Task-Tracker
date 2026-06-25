@@ -18,12 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
 type ColumnOption = {
@@ -56,11 +56,11 @@ export function TaskDetailsSheet({
   const pathname = usePathname();
 
   return (
-    <Sheet open={Boolean(task)} onOpenChange={(open) => !open && router.replace(pathname)}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+    <Dialog open={Boolean(task)} onOpenChange={(open) => !open && router.replace(pathname)}>
+      <DialogContent className="max-h-[90vh] w-full overflow-y-auto sm:max-w-3xl">
         {task ? <TaskDetailsForm key={task.id} projectId={projectId} task={task} columns={columns} /> : null}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -80,19 +80,19 @@ function TaskDetailsForm({
 
   return (
     <>
-      <SheetHeader className="space-y-3 border-b border-border/60 pb-4">
+      <DialogHeader className="space-y-3 border-b border-border/60 pb-4">
         <div className="flex items-center gap-2">
           <Badge variant="secondary">
             {PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label}
           </Badge>
           <Badge variant="outline">Task details</Badge>
         </div>
-        <SheetTitle className="text-left text-2xl">{task.title}</SheetTitle>
-        <SheetDescription className="text-left">
+        <DialogTitle className="text-left text-2xl">{task.title}</DialogTitle>
+        <DialogDescription className="text-left">
           Created {format(task.createdAt, "MMM d, yyyy")} and last updated{" "}
           {format(task.updatedAt, "MMM d, yyyy")}.
-        </SheetDescription>
-      </SheetHeader>
+        </DialogDescription>
+      </DialogHeader>
 
       <form action={updateTask} className="mt-6 space-y-5">
         <input type="hidden" name="projectId" value={projectId} />
@@ -108,7 +108,11 @@ function TaskDetailsForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Status</label>
-            <Select value={selectedColumn} onValueChange={(value) => value && setSelectedColumn(value)}>
+            <Select
+              value={selectedColumn}
+              onValueChange={(value) => value && setSelectedColumn(value)}
+              items={columns.map((column) => ({ label: column.name, value: column.id }))}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select a column" />
               </SelectTrigger>

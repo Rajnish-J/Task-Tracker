@@ -1,13 +1,11 @@
 import { format } from "date-fns";
 
 import { CreateColumnDialog } from "@/components/create-column-dialog";
-import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
 import { KanbanBoard } from "@/components/kanban-board";
 import { ManageColumnsDialog } from "@/components/manage-columns-dialog";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { getProjectBoard } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -52,13 +50,6 @@ export default async function ProjectPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <CreateProjectDialog
-              trigger={
-                <Button variant="outline" className="shadow-sm">
-                  New Project
-                </Button>
-              }
-            />
             <ManageColumnsDialog project={project} />
             <CreateColumnDialog projectId={project.id} />
             <CreateTaskDialog
