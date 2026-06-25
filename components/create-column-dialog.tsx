@@ -16,13 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AccentSelect } from "@/components/accent-select";
 
 export function CreateColumnDialog({ projectId }: { projectId: string }) {
   const [open, setOpen] = React.useState(false);
@@ -56,18 +50,11 @@ export function CreateColumnDialog({ projectId }: { projectId: string }) {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Accent</label>
-            <Select value={color} onValueChange={(value) => value && setColor(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a column accent" />
-              </SelectTrigger>
-              <SelectContent>
-                {COLUMN_COLOR_OPTIONS.map((option, index) => (
-                  <SelectItem key={option} value={option}>
-                    Accent {index + 1}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AccentSelect
+              value={color}
+              onValueChange={setColor}
+              placeholder="Select a column accent"
+            />
           </div>
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Adding column...">

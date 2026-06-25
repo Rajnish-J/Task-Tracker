@@ -20,3 +20,14 @@ export const COLUMN_COLOR_OPTIONS = [
   "bg-rose-500/15 text-rose-600 dark:text-rose-300",
   "bg-slate-500/15 text-slate-600 dark:text-slate-300",
 ] as const;
+
+// Friendly label + solid swatch class for each accent value. Swatch classes are
+// written as literals so Tailwind's scanner generates them.
+export const COLUMN_ACCENT_META: Record<string, { label: string; swatch: string }> = {
+  "bg-sky-500/15 text-sky-600 dark:text-sky-300": { label: "Sky", swatch: "bg-sky-500" },
+  "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300": { label: "Emerald", swatch: "bg-emerald-500" },
+  "bg-amber-500/15 text-amber-600 dark:text-amber-300": { label: "Amber", swatch: "bg-amber-500" },
+  "bg-violet-500/15 text-violet-600 dark:text-violet-300": { label: "Violet", swatch: "bg-violet-500" },
+  "bg-rose-500/15 text-rose-600 dark:text-rose-300": { label: "Rose", swatch: "bg-rose-500" },
+  "bg-slate-500/15 text-slate-600 dark:text-slate-300": { label: "Slate", swatch: "bg-slate-500" },
+};

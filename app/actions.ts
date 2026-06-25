@@ -590,6 +590,40 @@ export async function createStoryTask(formData: FormData) {
   redirect(`/projects/${values.projectId}?task=${values.taskId}`);
 }
 
+// Same as createStoryTask but stays on the board (no redirect into the task
+// details sheet) — used by the inline "Add task" form on Kanban cards.
+export async function createStoryTaskOnBoard(formData: FormData) {
+  const values = createStoryTaskSchema.parse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    title: formData.get("title"),
+    description: formData.get("description") || undefined,
+    priority: formData.get("priority"),
+    dueDate: formData.get("dueDate") || undefined,
+  });
+
+  const [lastChild] = await db
+    .select({ position: storyTasks.position })
+    .from(storyTasks)
+    .where(eq(storyTasks.taskId, values.taskId))
+    .orderBy(desc(storyTasks.position))
+    .limit(1);
+
+  await db.insert(storyTasks).values({
+    title: values.title,
+    description: values.description || null,
+    priority: values.priority,
+    dueDate: parseOptionalDate(values.dueDate),
+    taskId: values.taskId,
+    position: (lastChild?.position ?? -1) + 1,
+  });
+
+  // A newly added (incomplete) child can take a completed story out of Done.
+  await syncStoryCompletion(values.taskId, values.projectId);
+
+  revalidatePath(`/projects/${values.projectId}`);
+}
+
 export async function updateStoryTask(formData: FormData) {
   const values = updateStoryTaskSchema.parse({
     projectId: formData.get("projectId"),
