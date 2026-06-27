@@ -6,6 +6,8 @@ import { Check, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { createStoryTask, deleteStoryTask, toggleStoryTask, updateStoryTask } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
+import { TagBadge } from "@/components/tag-badge";
+import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,8 @@ import { cn } from "@/lib/utils";
 
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
+type Tag = { id: string; name: string; color: string };
+
 type StoryTask = {
   id: string;
   title: string;
@@ -22,6 +26,7 @@ type StoryTask = {
   priority: Priority;
   dueDate: Date | null;
   isDone: boolean;
+  tag?: Tag | null;
 };
 
 type StoryTasksPanelProps = {
@@ -133,6 +138,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
                 {task.dueDate ? (
                   <p className="text-xs text-muted-foreground">Due {format(task.dueDate, "MMM d, yyyy")}</p>
                 ) : null}
+                {task.tag ? <TagBadge tag={task.tag} className="text-[10px]" /> : null}
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
@@ -279,6 +285,7 @@ function StoryTaskFields({ task }: { task?: StoryTask }) {
         defaultValue={task?.dueDate ? format(task.dueDate, "yyyy-MM-dd") : ""}
         aria-label="Task due date"
       />
+      <TagPicker defaultTag={task?.tag ?? null} idPrefix={`story-tag-${task?.id ?? "new"}`} />
     </>
   );
 }

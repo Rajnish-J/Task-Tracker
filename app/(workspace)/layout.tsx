@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell";
-import { getProjects } from "@/lib/data";
+import { flattenSectionTree, getSectionsTree } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,13 @@ export default async function WorkspaceLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const projects = await getProjects();
+  console.log("[diag] WorkspaceLayout render");
+  const { tree, ungroupedProjects } = await getSectionsTree();
+  const sectionOptions = flattenSectionTree(tree);
 
-  return <AppShell projects={projects}>{children}</AppShell>;
+  return (
+    <AppShell tree={tree} ungroupedProjects={ungroupedProjects} sectionOptions={sectionOptions}>
+      {children}
+    </AppShell>
+  );
 }

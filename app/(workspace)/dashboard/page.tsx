@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 
 import { DashboardCharts } from "@/components/dashboard-charts";
+import { DashboardTagFilter } from "@/components/dashboard-tag-filter";
+import { TagBadge } from "@/components/tag-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,12 +25,19 @@ import {
 } from "@/components/ui/table";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { getDashboardData } from "@/lib/data";
+import { getDashboardData, getTaggedItems, getTags } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const data = await getDashboardData();
+type DashboardPageProps = {
+  searchParams: Promise<{ tag?: string }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const { tag: selectedTagId } = await searchParams;
+  const [data, tags] = await Promise.all([getDashboardData(), getTags()]);
+  const tagged = selectedTagId ? await getTaggedItems(selectedTagId) : null;
+  const selectedTag = selectedTagId ? tags.find((tag) => tag.id === selectedTagId) : undefined;
 
   const taskCompletionRate =
     data.totalStoryTasks > 0
@@ -134,6 +143,7 @@ export default async function DashboardPage() {
               break down by status, priority, and due date.
             </p>
           </div>
+          <DashboardTagFilter tags={tags} selectedTagId={selectedTagId} />
         </div>
       </header>
 
@@ -167,6 +177,77 @@ export default async function DashboardPage() {
           priorityBreakdown={data.priorityBreakdown}
           storyTaskBreakdown={data.storyTaskBreakdown}
         />
+
+        {/* Tagged items — only shown when a tag filter is active */}
+        {tagged && selectedTag ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                <span>Tagged items</span>
+                <TagBadge tag={selectedTag} />
+                <span className="text-sm font-normal text-muted-foreground">
+                  {tagged.boards.length} boards · {tagged.items.length} tasks
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Boards</h3>
+                {tagged.boards.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No boards with this tag.</p>
+                ) : (
+                  <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+                    {tagged.boards.map((board) => (
+                      <li key={board.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <Link
+                          href={`/projects/${board.projectId}?task=${board.id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {board.title}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">
+                          {board.project?.name}
+                          {board.column?.name ? ` · ${board.column.name}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Tasks</h3>
+                {tagged.items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No tasks with this tag.</p>
+                ) : (
+                  <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+                    {tagged.items.map((item) => (
+                      <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        {item.task?.project ? (
+                          <Link
+                            href={`/projects/${item.task.project.id}?task=${item.taskId}`}
+                            className={cn(
+                              "font-medium hover:underline",
+                              item.isDone && "text-muted-foreground line-through",
+                            )}
+                          >
+                            {item.title}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">{item.title}</span>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {item.task?.title}
+                          {item.task?.project?.name ? ` · ${item.task.project.name}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Per-project table */}
         <Card>

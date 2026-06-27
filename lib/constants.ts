@@ -31,3 +31,9 @@ export const COLUMN_ACCENT_META: Record<string, { label: string; swatch: string 
   "bg-rose-500/15 text-rose-600 dark:text-rose-300": { label: "Rose", swatch: "bg-rose-500" },
   "bg-slate-500/15 text-slate-600 dark:text-slate-300": { label: "Slate", swatch: "bg-slate-500" },
 };
+
+// Tags reuse the same accent palette as columns so we don't grow the Tailwind
+// safelist. Kept as separate exports so tag UI reads clearly at call sites.
+export const TAG_COLOR_OPTIONS = COLUMN_COLOR_OPTIONS;
+
+export const TAG_COLOR_META = COLUMN_ACCENT_META;

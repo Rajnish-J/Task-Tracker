@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 
 import { createTask } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
+import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import {
@@ -150,6 +151,7 @@ export function CreateTaskDialog({
             </label>
             <Input id="task-due-date" name="dueDate" type="date" />
           </div>
+          <TagPicker idPrefix="task-tag" />
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Creating task...">Create task</SubmitButton>
           </div>

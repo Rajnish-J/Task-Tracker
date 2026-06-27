@@ -9,6 +9,13 @@ import * as schema from "@/lib/db/schema";
 // no global WebSocket, so wire up the `ws` polyfill.
 neonConfig.webSocketConstructor = ws;
 
+// Route non-transactional pool queries (every read + simple writes) over Neon's
+// stateless HTTP fetch instead of the persistent WebSocket. The long-lived WS in
+// a dev/serverless process gets torn down between requests, which surfaced as
+// "Connection closed." errors on server-action writes. Transactions still use
+// the WebSocket via pool.connect().
+neonConfig.poolQueryViaFetch = true;
+
 declare global {
   // eslint-disable-next-line no-var
   var __dbPool: Pool | undefined;

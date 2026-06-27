@@ -4,10 +4,11 @@ import { CreateColumnDialog } from "@/components/create-column-dialog";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
 import { KanbanBoard } from "@/components/kanban-board";
 import { ManageColumnsDialog } from "@/components/manage-columns-dialog";
+import { ProjectSectionSelect } from "@/components/project-section-select";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { getProjectBoard } from "@/lib/data";
+import { flattenSectionTree, getProjectBoard, getSectionsTree } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,11 @@ export default async function ProjectPage({
 }: ProjectPageProps) {
   const { projectId } = await params;
   const { task: taskId } = await searchParams;
-  const project = await getProjectBoard(projectId);
+  const [project, { tree }] = await Promise.all([
+    getProjectBoard(projectId),
+    getSectionsTree(),
+  ]);
+  const sectionOptions = flattenSectionTree(tree);
 
   const selectedTask = taskId
     ? project.columns.flatMap((column) => column.tasks).find((task) => task.id === taskId) ?? null
@@ -52,6 +57,11 @@ export default async function ProjectPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <ProjectSectionSelect
+              projectId={project.id}
+              currentSectionId={project.sectionId}
+              sections={sectionOptions}
+            />
             <ManageColumnsDialog project={project} />
             <CreateColumnDialog projectId={project.id} />
             <CreateTaskDialog

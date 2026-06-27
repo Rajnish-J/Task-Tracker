@@ -2,18 +2,81 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull } from "drizzle-orm";
 import { z } from "zod";
 
-import { COLUMN_COLOR_OPTIONS, DEFAULT_COLUMNS } from "@/lib/constants";
-import { statusKeyFromColumnName } from "@/lib/data";
+import { COLUMN_COLOR_OPTIONS, DEFAULT_COLUMNS, TAG_COLOR_OPTIONS } from "@/lib/constants";
+import { getTags, statusKeyFromColumnName } from "@/lib/data";
 import { db } from "@/lib/db";
-import { columns, PRIORITY_VALUES, projects, storyTasks, tasks } from "@/lib/db/schema";
+import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tags, tasks } from "@/lib/db/schema";
 import { slugify } from "@/lib/utils/slugify";
+
+// Tag fields shared by every create/edit form. The picker emits either a chosen
+// `tagId` or a new `tagName` (+ optional `tagColor`); both are optional.
+const tagFields = {
+  tagId: z.string().optional(),
+  tagName: z.string().trim().max(40).optional(),
+  tagColor: z.string().optional(),
+};
+
+function readTagFields(formData: FormData) {
+  return {
+    tagId: (formData.get("tagId") as string) || undefined,
+    tagName: (formData.get("tagName") as string) || undefined,
+    tagColor: (formData.get("tagColor") as string) || undefined,
+  };
+}
+
+// Resolve the single tag for an item: use the chosen id, else find-or-create by
+// name (case-insensitive), else leave it untagged. Tag rows live independently
+// of the item so this runs outside the item's transaction.
+async function resolveTagId(input: {
+  tagId?: string;
+  tagName?: string;
+  tagColor?: string;
+}): Promise<string | null> {
+  if (input.tagId) {
+    return input.tagId;
+  }
+
+  const name = input.tagName?.trim();
+  if (!name) {
+    return null;
+  }
+
+  const existing = await db.query.tags.findFirst({
+    where: ilike(tags.name, name),
+    columns: { id: true },
+  });
+  if (existing) {
+    return existing.id;
+  }
+
+  const color = (TAG_COLOR_OPTIONS as readonly string[]).includes(input.tagColor ?? "")
+    ? (input.tagColor as string)
+    : TAG_COLOR_OPTIONS[0];
+
+  try {
+    const [created] = await db
+      .insert(tags)
+      .values({ name, color })
+      .returning({ id: tags.id });
+    return created.id;
+  } catch {
+    // Lost a race on the unique name — re-read the winner.
+    const fallback = await db.query.tags.findFirst({
+      where: ilike(tags.name, name),
+      columns: { id: true },
+    });
+    return fallback?.id ?? null;
+  }
+}
 
 const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
+  sectionId: z.string().optional(),
+  ...tagFields,
 });
 
 const createColumnSchema = z.object({
@@ -43,6 +106,7 @@ const createTaskSchema = z.object({
   notes: z.string().trim().max(1200).optional(),
   priority: z.enum(PRIORITY_VALUES),
   dueDate: z.string().optional(),
+  ...tagFields,
 });
 
 const updateTaskSchema = z.object({
@@ -55,6 +119,7 @@ const updateTaskSchema = z.object({
   priority: z.enum(PRIORITY_VALUES),
   columnId: z.string().min(1),
   dueDate: z.string().optional(),
+  ...tagFields,
 });
 
 const moveTaskSchema = z.object({
@@ -71,6 +136,7 @@ const createStoryTaskSchema = z.object({
   description: z.string().trim().max(600).optional(),
   priority: z.enum(PRIORITY_VALUES),
   dueDate: z.string().optional(),
+  ...tagFields,
 });
 
 const updateStoryTaskSchema = z.object({
@@ -81,6 +147,7 @@ const updateStoryTaskSchema = z.object({
   description: z.string().trim().max(600).optional(),
   priority: z.enum(PRIORITY_VALUES),
   dueDate: z.string().optional(),
+  ...tagFields,
 });
 
 const toggleStoryTaskSchema = z.object({
@@ -109,17 +176,31 @@ function parseOptionalDate(value?: string) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-async function resolveUniqueSlug(name: string) {
-  const baseSlug = slugify(name) || "project";
-  let slug = baseSlug;
-  let suffix = 1;
-
-  while (
+async function slugExists(slug: string, table: "projects" | "sections") {
+  if (table === "sections") {
+    return Boolean(
+      await db.query.sections.findFirst({
+        where: eq(sections.slug, slug),
+        columns: { id: true },
+      }),
+    );
+  }
+  return Boolean(
     await db.query.projects.findFirst({
       where: eq(projects.slug, slug),
       columns: { id: true },
-    })
-  ) {
+    }),
+  );
+}
+
+// Projects and sections own separate slug spaces; pass the table so the
+// uniqueness check (and fallback base) targets the right one.
+async function resolveUniqueSlug(name: string, table: "projects" | "sections" = "projects") {
+  const baseSlug = slugify(name) || (table === "sections" ? "section" : "project");
+  let slug = baseSlug;
+  let suffix = 1;
+
+  while (await slugExists(slug, table)) {
     suffix += 1;
     slug = `${baseSlug}-${suffix}`;
   }
@@ -131,9 +212,12 @@ export async function createProject(formData: FormData) {
   const values = createProjectSchema.parse({
     name: formData.get("name"),
     description: formData.get("description") || undefined,
+    sectionId: (formData.get("sectionId") as string) || undefined,
+    ...readTagFields(formData),
   });
 
   const slug = await resolveUniqueSlug(values.name);
+  const tagId = await resolveTagId(values);
 
   const project = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -142,6 +226,8 @@ export async function createProject(formData: FormData) {
         name: values.name,
         slug,
         description: values.description || null,
+        tagId,
+        sectionId: values.sectionId || null,
       })
       .returning({ id: projects.id });
 
@@ -279,7 +365,10 @@ export async function createTask(formData: FormData) {
     notes: formData.get("notes") || undefined,
     priority: formData.get("priority"),
     dueDate: formData.get("dueDate") || undefined,
+    ...readTagFields(formData),
   });
+
+  const tagId = await resolveTagId(values);
 
   const [lastTask] = await db
     .select({ position: tasks.position })
@@ -297,6 +386,7 @@ export async function createTask(formData: FormData) {
     dueDate: parseOptionalDate(values.dueDate),
     projectId: values.projectId,
     columnId: values.columnId,
+    tagId,
     position: (lastTask?.position ?? -1) + 1,
   });
 
@@ -315,6 +405,7 @@ export async function updateTask(formData: FormData) {
     priority: formData.get("priority"),
     columnId: formData.get("columnId"),
     dueDate: formData.get("dueDate") || undefined,
+    ...readTagFields(formData),
   });
 
   const existingTask = await db.query.tasks.findFirst({
@@ -326,6 +417,7 @@ export async function updateTask(formData: FormData) {
     redirect(`/projects/${values.projectId}`);
   }
 
+  const tagId = await resolveTagId(values);
   const movedColumn = existingTask.columnId !== values.columnId;
 
   await db.transaction(async (tx) => {
@@ -352,6 +444,7 @@ export async function updateTask(formData: FormData) {
         priority: values.priority,
         dueDate: parseOptionalDate(values.dueDate),
         columnId: values.columnId,
+        tagId,
         ...(positionUpdate !== undefined ? { position: positionUpdate } : {}),
       })
       .where(eq(tasks.id, values.taskId));
@@ -485,6 +578,226 @@ export async function moveTask(input: z.infer<typeof moveTaskSchema>) {
   revalidatePath(`/projects/${values.projectId}`);
 }
 
+const reorderProjectsSchema = z.object({
+  orderedIds: z.array(z.string().min(1)).min(1),
+});
+
+export async function reorderProjects(input: z.infer<typeof reorderProjectsSchema>) {
+  const { orderedIds } = reorderProjectsSchema.parse(input);
+
+  await db.transaction(async (tx) => {
+    // Phase 1: park every project at a high, still-unique position so the final
+    // pass below can't collide while positions are being shuffled.
+    for (const [index, id] of orderedIds.entries()) {
+      await tx
+        .update(projects)
+        .set({ position: POSITION_OFFSET + index })
+        .where(eq(projects.id, id));
+    }
+
+    // Phase 2: assign contiguous final positions matching the requested order.
+    for (const [index, id] of orderedIds.entries()) {
+      await tx.update(projects).set({ position: index }).where(eq(projects.id, id));
+    }
+  });
+
+  revalidatePath("/");
+}
+
+// ---------------------------------------------------------------------------
+// Sections: nested groups of projects.
+// ---------------------------------------------------------------------------
+
+const createSectionSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(240).optional(),
+  parentId: z.string().optional(),
+});
+
+export async function createSection(formData: FormData) {
+  console.log("[diag] A entered createSection, formData?", typeof formData?.get);
+  try {
+    console.log("[diag] B before read");
+    const rows = await db.query.sections.findMany({ columns: { id: true } });
+    console.log("[diag] C read ok, count =", rows.length);
+  } catch (err) {
+    console.error("[diag] D read FAILED:", (err as Error)?.message);
+    console.error("[diag] stack:", (err as Error)?.stack);
+    throw err;
+  }
+  console.log("[diag] E before redirect");
+  redirect("/dashboard");
+}
+
+const updateSectionSchema = z.object({
+  sectionId: z.string().min(1),
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(240).optional(),
+  parentId: z.string().optional(),
+});
+
+export async function updateSection(formData: FormData) {
+  const values = updateSectionSchema.parse({
+    sectionId: formData.get("sectionId"),
+    name: formData.get("name"),
+    description: formData.get("description") || undefined,
+    parentId: (formData.get("parentId") as string) || undefined,
+  });
+
+  const newParentId = values.parentId || null;
+
+  // Cycle guard: a section can't be its own parent, nor be moved under one of
+  // its own descendants (the self-FK alone does not prevent cycles). Walk up
+  // from the proposed parent; if we reach this section, the move is a cycle.
+  if (newParentId) {
+    if (newParentId === values.sectionId) {
+      throw new Error("A section cannot be its own parent.");
+    }
+    const all = await db.query.sections.findMany({
+      columns: { id: true, parentId: true },
+    });
+    const parentOf = new Map(all.map((section) => [section.id, section.parentId]));
+    let cursor: string | null | undefined = newParentId;
+    while (cursor) {
+      if (cursor === values.sectionId) {
+        throw new Error("Cannot move a section under one of its own descendants.");
+      }
+      cursor = parentOf.get(cursor) ?? null;
+    }
+  }
+
+  const existing = await db.query.sections.findFirst({
+    where: eq(sections.id, values.sectionId),
+    columns: { name: true },
+  });
+  if (!existing) {
+    redirect("/");
+  }
+
+  const slug =
+    existing.name !== values.name
+      ? await resolveUniqueSlug(values.name, "sections")
+      : undefined;
+
+  await db
+    .update(sections)
+    .set({
+      name: values.name,
+      description: values.description || null,
+      parentId: newParentId,
+      ...(slug ? { slug } : {}),
+    })
+    .where(eq(sections.id, values.sectionId));
+
+  revalidatePath("/");
+  redirect(`/sections/${values.sectionId}`);
+}
+
+const deleteSectionSchema = z.object({
+  sectionId: z.string().min(1),
+});
+
+// Deleting a section relies on `onDelete: "set null"`: child sections are
+// promoted to the top level and member projects are ungrouped — no tasks lost.
+export async function deleteSection(formData: FormData) {
+  const { sectionId } = deleteSectionSchema.parse({
+    sectionId: formData.get("sectionId"),
+  });
+
+  await db.delete(sections).where(eq(sections.id, sectionId));
+
+  revalidatePath("/");
+  redirect("/");
+}
+
+const updateProjectSectionSchema = z.object({
+  projectId: z.string().min(1),
+  sectionId: z.string().optional(),
+});
+
+// Move a project into a section (or ungroup it when sectionId is empty).
+export async function updateProjectSection(formData: FormData) {
+  const values = updateProjectSectionSchema.parse({
+    projectId: formData.get("projectId"),
+    sectionId: (formData.get("sectionId") as string) ?? "",
+  });
+
+  await db
+    .update(projects)
+    .set({ sectionId: values.sectionId || null })
+    .where(eq(projects.id, values.projectId));
+
+  revalidatePath("/");
+  redirect(`/projects/${values.projectId}`);
+}
+
+const moveProjectToSectionSchema = z.object({
+  projectId: z.string().min(1),
+  sectionId: z.string().nullable(),
+});
+
+// Plain-args variant of the above, callable from the sidebar project menu without
+// a form and without redirecting (the menu just refreshes in place).
+export async function moveProjectToSection(input: z.infer<typeof moveProjectToSectionSchema>) {
+  const values = moveProjectToSectionSchema.parse(input);
+
+  await db
+    .update(projects)
+    .set({ sectionId: values.sectionId || null })
+    .where(eq(projects.id, values.projectId));
+
+  revalidatePath("/");
+}
+
+const renameProjectSchema = z.object({
+  projectId: z.string().min(1),
+  name: z.string().trim().min(2).max(80),
+});
+
+// Rename a project, re-slugging only when the name actually changes.
+export async function renameProject(formData: FormData) {
+  const values = renameProjectSchema.parse({
+    projectId: formData.get("projectId"),
+    name: formData.get("name"),
+  });
+
+  const existing = await db.query.projects.findFirst({
+    where: eq(projects.id, values.projectId),
+    columns: { name: true },
+  });
+  if (!existing) {
+    redirect("/");
+  }
+
+  const slug =
+    existing.name !== values.name ? await resolveUniqueSlug(values.name) : undefined;
+
+  await db
+    .update(projects)
+    .set({ name: values.name, ...(slug ? { slug } : {}) })
+    .where(eq(projects.id, values.projectId));
+
+  revalidatePath("/");
+  revalidatePath(`/projects/${values.projectId}`);
+}
+
+const deleteProjectSchema = z.object({
+  projectId: z.string().min(1),
+});
+
+// Delete a project and its entire board. Columns, tasks and story tasks are
+// removed by the cascade FKs in the schema.
+export async function deleteProject(formData: FormData) {
+  const { projectId } = deleteProjectSchema.parse({
+    projectId: formData.get("projectId"),
+  });
+
+  await db.delete(projects).where(eq(projects.id, projectId));
+
+  revalidatePath("/");
+  redirect("/");
+}
+
 // Keep a story card's column in sync with its child tasks: when every child is
 // done the card moves to the project's Done lane, and if a child is reopened a
 // card sitting in Done moves back to the first non-Done lane. Stories without
@@ -565,6 +878,7 @@ export async function createStoryTask(formData: FormData) {
     description: formData.get("description") || undefined,
     priority: formData.get("priority"),
     dueDate: formData.get("dueDate") || undefined,
+    ...readTagFields(formData),
   });
 
   const [lastChild] = await db
@@ -580,6 +894,7 @@ export async function createStoryTask(formData: FormData) {
     priority: values.priority,
     dueDate: parseOptionalDate(values.dueDate),
     taskId: values.taskId,
+    tagId: await resolveTagId(values),
     position: (lastChild?.position ?? -1) + 1,
   });
 
@@ -600,6 +915,7 @@ export async function createStoryTaskOnBoard(formData: FormData) {
     description: formData.get("description") || undefined,
     priority: formData.get("priority"),
     dueDate: formData.get("dueDate") || undefined,
+    ...readTagFields(formData),
   });
 
   const [lastChild] = await db
@@ -615,6 +931,7 @@ export async function createStoryTaskOnBoard(formData: FormData) {
     priority: values.priority,
     dueDate: parseOptionalDate(values.dueDate),
     taskId: values.taskId,
+    tagId: await resolveTagId(values),
     position: (lastChild?.position ?? -1) + 1,
   });
 
@@ -633,6 +950,7 @@ export async function updateStoryTask(formData: FormData) {
     description: formData.get("description") || undefined,
     priority: formData.get("priority"),
     dueDate: formData.get("dueDate") || undefined,
+    ...readTagFields(formData),
   });
 
   await db
@@ -642,6 +960,7 @@ export async function updateStoryTask(formData: FormData) {
       description: values.description || null,
       priority: values.priority,
       dueDate: parseOptionalDate(values.dueDate),
+      tagId: await resolveTagId(values),
     })
     .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
 
@@ -714,4 +1033,30 @@ export async function deleteStoryTask(formData: FormData) {
 
   revalidatePath(`/projects/${values.projectId}`);
   redirect(`/projects/${values.projectId}?task=${values.taskId}`);
+}
+
+const createTagSchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  color: z.enum(TAG_COLOR_OPTIONS).optional(),
+});
+
+// Standalone tag creation (find-or-create by name) used by the tag picker's
+// "new tag" flow. Returns the resolved tag so the client can select it.
+export async function createTag(input: z.infer<typeof createTagSchema>) {
+  const values = createTagSchema.parse(input);
+  const tagId = await resolveTagId({ tagName: values.name, tagColor: values.color });
+  if (!tagId) {
+    throw new Error("Could not create tag");
+  }
+  const tag = await db.query.tags.findFirst({
+    where: eq(tags.id, tagId),
+    columns: { id: true, name: true, color: true },
+  });
+  return tag!;
+}
+
+// Client-callable wrapper so the tag picker can load the workspace tag pool
+// without threading the list through every mount point as props.
+export async function getTagsAction() {
+  return getTags();
 }

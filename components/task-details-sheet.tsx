@@ -7,6 +7,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { deleteTask, updateTask } from "@/app/actions";
 import { StoryTasksPanel } from "@/components/story-tasks-panel";
 import { SubmitButton } from "@/components/submit-button";
+import { TagBadge } from "@/components/tag-badge";
+import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,8 @@ type ColumnOption = {
   name: string;
 };
 
+type Tag = { id: string; name: string; color: string };
+
 type TaskDetailsSheetProps = {
   projectId: string;
   task: {
@@ -45,6 +49,7 @@ type TaskDetailsSheetProps = {
     createdAt: Date;
     updatedAt: Date;
     columnId: string;
+    tag?: Tag | null;
     storyTasks: {
       id: string;
       title: string;
@@ -52,6 +57,7 @@ type TaskDetailsSheetProps = {
       priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
       dueDate: Date | null;
       isDone: boolean;
+      tag?: Tag | null;
     }[];
   } | null;
   columns: ColumnOption[];
@@ -96,6 +102,7 @@ function TaskDetailsForm({
             {PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label}
           </Badge>
           <Badge variant="outline">User story</Badge>
+          {task.tag ? <TagBadge tag={task.tag} /> : null}
         </div>
         <DialogTitle className="text-left text-2xl">{task.title}</DialogTitle>
         <DialogDescription className="text-left">
@@ -178,6 +185,7 @@ function TaskDetailsForm({
             defaultValue={task.dueDate ? format(task.dueDate, "yyyy-MM-dd") : ""}
           />
         </div>
+        <TagPicker defaultTag={task.tag ?? null} idPrefix={`task-detail-tag-${task.id}`} />
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="task-detail-description">
             Description
