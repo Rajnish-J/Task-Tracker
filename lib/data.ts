@@ -125,7 +125,7 @@ export const STATUS_COLORS: Record<string, string> = {
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
-export async function getDashboardData() {
+export async function getDashboardData(tagId?: string) {
   const now = new Date();
   const soonThreshold = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -142,6 +142,19 @@ export async function getDashboardData() {
       },
     },
   });
+
+  // When a tag filter is active, narrow every column to the cards carrying that
+  // tag before aggregating, so all KPIs/charts/per-project rows reflect only the
+  // tagged cards. Projects with no matching cards stay in the list, with zeros.
+  const scopedProjects = tagId
+    ? projects.map((project) => ({
+        ...project,
+        columns: project.columns.map((column) => ({
+          ...column,
+          tasks: column.tasks.filter((task) => task.tagId === tagId),
+        })),
+      }))
+    : projects;
 
   let totalTasks = 0;
   let todo = 0;
@@ -163,7 +176,7 @@ export async function getDashboardData() {
   // Aggregate status counts by column display name across all projects.
   const statusByName = new Map<string, { count: number; key: string }>();
 
-  const projectRows = projects.map((project) => {
+  const projectRows = scopedProjects.map((project) => {
     let projectTasks = 0;
     let projectTodo = 0;
     let projectInProgress = 0;
