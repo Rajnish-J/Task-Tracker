@@ -43,11 +43,15 @@ export function NavSections({
   sections,
   currentSectionId,
   currentProjectId,
+  collapseNonce,
 }: {
   tree: SectionNode[];
   sections: { id: string; label: string }[];
   currentSectionId?: string;
   currentProjectId?: string;
+  // Bumped by the sidebar's "Collapse all" control; each row collapses when it
+  // changes.
+  collapseNonce?: number;
 }) {
   if (tree.length === 0) {
     return null;
@@ -66,6 +70,7 @@ export function NavSections({
               sections={sections}
               currentSectionId={currentSectionId}
               currentProjectId={currentProjectId}
+              collapseNonce={collapseNonce}
             />
           ))}
         </SidebarMenu>
@@ -80,14 +85,28 @@ function SectionRow({
   sections,
   currentSectionId,
   currentProjectId,
+  collapseNonce,
 }: {
   node: SectionNode;
   depth: number;
   sections: { id: string; label: string }[];
   currentSectionId?: string;
   currentProjectId?: string;
+  collapseNonce?: number;
 }) {
   const [open, setOpen] = React.useState(true);
+
+  // Collapse this row (and, by unmounting them, its descendants) whenever the
+  // sidebar's "Collapse all" nonce changes. Skip the initial mount so rows stay
+  // expanded by default.
+  const lastNonce = React.useRef(collapseNonce);
+  React.useEffect(() => {
+    if (lastNonce.current !== collapseNonce) {
+      lastNonce.current = collapseNonce;
+      setOpen(false);
+    }
+  }, [collapseNonce]);
+
   const hasChildren = node.children.length > 0 || node.projects.length > 0;
   const buttonPadding = depth * INDENT + (hasChildren ? 22 : 8);
 
@@ -127,6 +146,7 @@ function SectionRow({
               sections={sections}
               currentSectionId={currentSectionId}
               currentProjectId={currentProjectId}
+              collapseNonce={collapseNonce}
             />
           ))}
           <SectionProjects

@@ -1,8 +1,16 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { CalendarRange, ChartColumnBig, FolderKanban, FolderTree, LayoutDashboard } from "lucide-react";
+import {
+  CalendarRange,
+  ChartColumnBig,
+  ChevronsDownUp,
+  FolderKanban,
+  FolderTree,
+  LayoutDashboard,
+} from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { CreateSectionDialog } from "@/components/create-section-dialog";
@@ -31,6 +39,8 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 export function AppSidebar({ tree, ungroupedProjects, sectionOptions, ...props }: AppSidebarProps) {
   const params = useParams<{ projectId?: string; sectionId?: string }>();
   const pathname = usePathname();
+  // Bumping this collapses every expanded section in NavSections.
+  const [collapseNonce, setCollapseNonce] = React.useState(0);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -111,6 +121,7 @@ export function AppSidebar({ tree, ungroupedProjects, sectionOptions, ...props }
           sections={sectionOptions}
           currentSectionId={params?.sectionId}
           currentProjectId={params?.projectId}
+          collapseNonce={collapseNonce}
         />
         <NavProjects
           currentProjectId={params?.projectId}
@@ -120,6 +131,18 @@ export function AppSidebar({ tree, ungroupedProjects, sectionOptions, ...props }
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {tree.length > 0 ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Collapse all"
+                className="w-full"
+                onClick={() => setCollapseNonce((value) => value + 1)}
+              >
+                <ChevronsDownUp className="size-4" />
+                <span>Collapse all</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <SidebarMenuItem>
             <ModeToggle />
           </SidebarMenuItem>

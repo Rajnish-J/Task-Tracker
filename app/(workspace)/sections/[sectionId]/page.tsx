@@ -1,10 +1,11 @@
-import { Info } from "lucide-react";
+import { FolderKanban, FolderTree, Info } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { CreateSectionDialog } from "@/components/create-section-dialog";
 import { SectionBoard } from "@/components/section-board";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { flattenSectionTree, getSectionBoard, getSectionsTree, getTaskForSheet } from "@/lib/data";
 
@@ -50,8 +51,26 @@ export default async function SectionPage({ params, searchParams }: SectionPageP
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <CreateSectionDialog sections={sectionOptions} defaultParentId={section.id} />
-            <CreateProjectDialog sections={sectionOptions} defaultSectionId={section.id} />
+            <CreateSectionDialog
+              sections={sectionOptions}
+              defaultParentId={section.id}
+              trigger={
+                <Button variant="outline" className="w-full justify-center gap-2 sm:w-40">
+                  <FolderTree className="size-4 shrink-0" />
+                  New Section
+                </Button>
+              }
+            />
+            <CreateProjectDialog
+              sections={sectionOptions}
+              defaultSectionId={section.id}
+              trigger={
+                <Button className="w-full justify-center gap-2 sm:w-40">
+                  <FolderKanban className="size-4 shrink-0" />
+                  New Project
+                </Button>
+              }
+            />
           </div>
         </div>
       </header>

@@ -76,7 +76,7 @@ export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectR
           <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>Move to section</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="max-h-72 w-56 overflow-y-auto">
+            <DropdownMenuSubContent className="thin-scrollbar max-h-72 w-56 overflow-y-auto">
               <DropdownMenuRadioGroup
                 value={currentSectionId ?? ""}
                 onValueChange={(value) =>
