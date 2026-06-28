@@ -3,10 +3,12 @@
 import { usePathname, useRouter } from "next/navigation";
 import { Tag as TagIcon } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
+
 type TagOption = { id: string; name: string; color: string };
 
-const selectClassName =
-  "h-9 min-w-48 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClassName = cn(nativeSelectClass, "w-auto min-w-48");
 
 // Drives the dashboard's tagged-items list via the `?tag=` query param. The page
 // is a server component, so selecting a tag navigates and re-renders the list.
@@ -42,9 +44,11 @@ export function DashboardTagFilter({
         className={selectClassName}
         aria-label="Filter by tag"
       >
-        <option value="">All tags</option>
+        <option className={nativeSelectOptionClass} value="">
+          All tags
+        </option>
         {tags.map((tag) => (
-          <option key={tag.id} value={tag.id}>
+          <option className={nativeSelectOptionClass} key={tag.id} value={tag.id}>
             {tag.name}
           </option>
         ))}

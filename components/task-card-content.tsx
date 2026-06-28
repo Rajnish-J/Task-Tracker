@@ -23,9 +23,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
-const selectClassName =
-  "h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClassName = cn(nativeSelectClass, "h-8 w-auto px-2 py-0 text-xs");
 
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -207,7 +207,7 @@ export function TaskCardContent({
                       className={selectClassName}
                     >
                       {PRIORITY_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <option className={nativeSelectOptionClass} key={option.value} value={option.value}>
                           {option.label}
                         </option>
                       ))}

@@ -2,8 +2,27 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, FolderKanban, FolderTree } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronRight, FolderKanban, FolderTree, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
+import { reorderProjects } from "@/app/actions";
 import { ProjectRowMenu } from "@/components/project-row-menu";
 import {
   SidebarGroup,
@@ -15,7 +34,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import type { SectionNode } from "@/lib/data";
+import type { SectionNode, SectionProject } from "@/lib/data";
 
 const INDENT = 12;
 
@@ -110,28 +129,167 @@ function SectionRow({
               currentProjectId={currentProjectId}
             />
           ))}
-          {node.projects.map((project) => (
-            <SidebarMenuItem key={project.id}>
-              <SidebarMenuButton
-                render={<Link href={`/projects/${project.id}`} />}
-                isActive={currentProjectId === project.id}
-                tooltip={project.name}
-                className="pr-16"
-                style={{ paddingLeft: (depth + 1) * INDENT + 8 }}
-              >
-                <FolderKanban className="size-4" />
-                <span>{project.name}</span>
-              </SidebarMenuButton>
-              <SidebarMenuBadge className="right-8">{project.taskCount}</SidebarMenuBadge>
-              <ProjectRowMenu
-                project={project}
-                sections={sections}
-                currentSectionId={node.id}
-              />
-            </SidebarMenuItem>
-          ))}
+          <SectionProjects
+            sectionId={node.id}
+            projects={node.projects}
+            depth={depth}
+            sections={sections}
+            currentProjectId={currentProjectId}
+          />
         </>
       ) : null}
     </>
+  );
+}
+
+// Drag-to-reorder the projects within a single section, mirroring the ungrouped
+// list. Each section is its own DnD context, so dragging only reorders within
+// that section; moving a project to a different section stays in the row menu.
+function SectionProjects({
+  sectionId,
+  projects,
+  depth,
+  sections,
+  currentProjectId,
+}: {
+  sectionId: string;
+  projects: SectionProject[];
+  depth: number;
+  sections: { id: string; label: string }[];
+  currentProjectId?: string;
+}) {
+  const router = useRouter();
+  const [items, setItems] = React.useState<SectionProject[]>(projects);
+  const [activeId, setActiveId] = React.useState<string | null>(null);
+
+  // Re-sync with server data whenever the rendered fields change — set, order,
+  // names (rename), or task counts — so a revalidate replaces the optimistic copy.
+  const signature = React.useMemo(
+    () => projects.map((project) => `${project.id}:${project.name}:${project.taskCount}`).join("|"),
+    [projects],
+  );
+  const lastSignature = React.useRef(signature);
+  React.useEffect(() => {
+    if (lastSignature.current !== signature) {
+      setItems(projects);
+      lastSignature.current = signature;
+    }
+  }, [signature, projects]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const activeProject = activeId
+    ? items.find((project) => project.id === activeId) ?? null
+    : null;
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = items.findIndex((project) => project.id === active.id);
+    const newIndex = items.findIndex((project) => project.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next = arrayMove(items, oldIndex, newIndex);
+    setItems(next);
+
+    void reorderProjects({ orderedIds: next.map((project) => project.id) }).then(() =>
+      router.refresh(),
+    );
+  }
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <DndContext
+      id={`nav-section-${sectionId}-dnd`}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={items.map((project) => project.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {items.map((project) => (
+          <SortableSectionProject
+            key={project.id}
+            project={project}
+            depth={depth}
+            sections={sections}
+            currentProjectId={currentProjectId}
+          />
+        ))}
+      </SortableContext>
+
+      <DragOverlay>
+        {activeProject ? (
+          <div className="flex items-center gap-2 rounded-md bg-sidebar-accent px-2 py-1.5 text-sm shadow-md">
+            <FolderKanban className="size-4" />
+            <span className="truncate">{activeProject.name}</span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function SortableSectionProject({
+  project,
+  depth,
+  sections,
+  currentProjectId,
+}: {
+  project: SectionProject;
+  depth: number;
+  sections: { id: string; label: string }[];
+  currentProjectId?: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: project.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  };
+
+  return (
+    <SidebarMenuItem ref={setNodeRef} style={style}>
+      <SidebarMenuButton
+        render={<Link href={`/projects/${project.id}`} />}
+        isActive={currentProjectId === project.id}
+        tooltip={project.name}
+        className="pr-16"
+        style={{ paddingLeft: (depth + 1) * INDENT + 8 }}
+      >
+        <FolderKanban className="size-4" />
+        <span>{project.name}</span>
+      </SidebarMenuButton>
+      <button
+        type="button"
+        aria-label={`Reorder ${project.name}`}
+        className={cn(
+          "absolute right-14 top-1/2 flex size-5 -translate-y-1/2 cursor-grab touch-none items-center justify-center rounded text-sidebar-foreground/50 opacity-0 transition-opacity hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/menu-item:opacity-100 active:cursor-grabbing",
+          isDragging && "opacity-100",
+        )}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-3.5" />
+      </button>
+      <SidebarMenuBadge className="right-8">{project.taskCount}</SidebarMenuBadge>
+      <ProjectRowMenu project={project} sections={sections} currentSectionId={project.sectionId} />
+    </SidebarMenuItem>
   );
 }

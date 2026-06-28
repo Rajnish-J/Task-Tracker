@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -42,8 +43,7 @@ const priorityClasses: Record<Priority, string> = {
   URGENT: "bg-rose-500/15 text-rose-700 dark:text-rose-200",
 };
 
-const selectClassName =
-  "h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClassName = nativeSelectClass;
 
 export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPanelProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -265,7 +265,7 @@ function StoryTaskFields({ task }: { task?: StoryTask }) {
           className={selectClassName}
         >
           {PRIORITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option className={nativeSelectOptionClass} key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}

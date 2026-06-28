@@ -5,14 +5,14 @@ import * as React from "react";
 import { getTagsAction } from "@/app/actions";
 import { Input } from "@/components/ui/input";
 import { TAG_COLOR_META, TAG_COLOR_OPTIONS } from "@/lib/constants";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
 const NEW = "__new__";
 const NONE = "";
 
 type TagOption = { id: string; name: string; color: string };
 
-const selectClassName =
-  "h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClassName = nativeSelectClass;
 
 // Reusable, single-tag picker for any create/edit <form action={...}>. Loads the
 // workspace tag pool on mount, lets the user pick an existing tag or define a new
@@ -66,13 +66,17 @@ export function TagPicker({
         className={selectClassName}
         aria-label="Tag"
       >
-        <option value={NONE}>No tag</option>
+        <option className={nativeSelectOptionClass} value={NONE}>
+          No tag
+        </option>
         {tags.map((tag) => (
-          <option key={tag.id} value={tag.id}>
+          <option className={nativeSelectOptionClass} key={tag.id} value={tag.id}>
             {tag.name}
           </option>
         ))}
-        <option value={NEW}>+ New tag…</option>
+        <option className={nativeSelectOptionClass} value={NEW}>
+          + New tag…
+        </option>
       </select>
 
       {isNew ? (
@@ -91,7 +95,7 @@ export function TagPicker({
             aria-label="New tag color"
           >
             {TAG_COLOR_OPTIONS.map((color) => (
-              <option key={color} value={color}>
+              <option className={nativeSelectOptionClass} key={color} value={color}>
                 {TAG_COLOR_META[color]?.label ?? "Color"}
               </option>
             ))}

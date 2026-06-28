@@ -3,9 +3,10 @@
 import * as React from "react";
 
 import { updateProjectSection } from "@/app/actions";
+import { cn } from "@/lib/utils";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
-const selectClassName =
-  "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClassName = cn(nativeSelectClass, "w-auto py-0");
 
 // Move the current project into a section (or ungroup it). Submits on change so
 // there's no extra save button in the header.
@@ -33,9 +34,11 @@ export function ProjectSectionSelect({
         onChange={() => formRef.current?.requestSubmit()}
         className={selectClassName}
       >
-        <option value="">No section</option>
+        <option className={nativeSelectOptionClass} value="">
+          No section
+        </option>
         {sections.map((section) => (
-          <option key={section.id} value={section.id}>
+          <option className={nativeSelectOptionClass} key={section.id} value={section.id}>
             {section.label}
           </option>
         ))}

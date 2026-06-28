@@ -615,18 +615,33 @@ const createSectionSchema = z.object({
 });
 
 export async function createSection(formData: FormData) {
-  console.log("[diag] A entered createSection, formData?", typeof formData?.get);
-  try {
-    console.log("[diag] B before read");
-    const rows = await db.query.sections.findMany({ columns: { id: true } });
-    console.log("[diag] C read ok, count =", rows.length);
-  } catch (err) {
-    console.error("[diag] D read FAILED:", (err as Error)?.message);
-    console.error("[diag] stack:", (err as Error)?.stack);
-    throw err;
-  }
-  console.log("[diag] E before redirect");
-  redirect("/dashboard");
+  const values = createSectionSchema.parse({
+    name: formData.get("name"),
+    description: formData.get("description") || undefined,
+    parentId: (formData.get("parentId") as string) || undefined,
+  });
+
+  const slug = await resolveUniqueSlug(values.name, "sections");
+
+  const [lastSection] = await db
+    .select({ position: sections.position })
+    .from(sections)
+    .orderBy(desc(sections.position))
+    .limit(1);
+
+  const [section] = await db
+    .insert(sections)
+    .values({
+      name: values.name,
+      slug,
+      description: values.description || null,
+      parentId: values.parentId || null,
+      position: (lastSection?.position ?? -1) + 1,
+    })
+    .returning({ id: sections.id });
+
+  revalidatePath("/");
+  redirect(`/sections/${section.id}`);
 }
 
 const updateSectionSchema = z.object({
@@ -749,16 +764,24 @@ export async function moveProjectToSection(input: z.infer<typeof moveProjectToSe
   revalidatePath("/");
 }
 
-const renameProjectSchema = z.object({
+const updateProjectSchema = z.object({
   projectId: z.string().min(1),
   name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(240).optional(),
+  sectionId: z.string().optional(),
+  ...tagFields,
 });
 
-// Rename a project, re-slugging only when the name actually changes.
-export async function renameProject(formData: FormData) {
-  const values = renameProjectSchema.parse({
+// Edit a project's full details (name, description, section, tag) from the sidebar
+// menu — the create form reused for editing. Re-slugs only when the name changes,
+// and resolves the tag the same find-or-create way as creation.
+export async function updateProject(formData: FormData) {
+  const values = updateProjectSchema.parse({
     projectId: formData.get("projectId"),
     name: formData.get("name"),
+    description: formData.get("description") || undefined,
+    sectionId: (formData.get("sectionId") as string) || undefined,
+    ...readTagFields(formData),
   });
 
   const existing = await db.query.projects.findFirst({
@@ -771,10 +794,17 @@ export async function renameProject(formData: FormData) {
 
   const slug =
     existing.name !== values.name ? await resolveUniqueSlug(values.name) : undefined;
+  const tagId = await resolveTagId(values);
 
   await db
     .update(projects)
-    .set({ name: values.name, ...(slug ? { slug } : {}) })
+    .set({
+      name: values.name,
+      description: values.description || null,
+      sectionId: values.sectionId || null,
+      tagId,
+      ...(slug ? { slug } : {}),
+    })
     .where(eq(projects.id, values.projectId));
 
   revalidatePath("/");

@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
-const selectClassName =
-  "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClassName = nativeSelectClass;
 
 type CreateSectionDialogProps = {
   trigger?: React.ReactElement;
@@ -80,9 +80,11 @@ export function CreateSectionDialog({ trigger, sections, defaultParentId }: Crea
                 defaultValue={defaultParentId ?? ""}
                 className={selectClassName}
               >
-                <option value="">Top level (no parent)</option>
+                <option className={nativeSelectOptionClass} value="">
+                  Top level (no parent)
+                </option>
                 {sections.map((section) => (
-                  <option key={section.id} value={section.id}>
+                  <option className={nativeSelectOptionClass} key={section.id} value={section.id}>
                     {section.label}
                   </option>
                 ))}

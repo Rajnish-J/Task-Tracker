@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 
-import { deleteProject, moveProjectToSection, renameProject } from "@/app/actions";
+import { deleteProject, moveProjectToSection, updateProject } from "@/app/actions";
+import { ProjectForm } from "@/components/project-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,10 +28,17 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+
+type TagOption = { id: string; name: string; color: string };
 
 type ProjectRowMenuProps = {
-  project: { id: string; name: string };
+  project: {
+    id: string;
+    name: string;
+    description: string | null;
+    sectionId: string | null;
+    tag: TagOption | null;
+  };
   sections: { id: string; label: string }[];
   currentSectionId?: string | null;
 };
@@ -40,7 +48,7 @@ type ProjectRowMenuProps = {
 export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectRowMenuProps) {
   const router = useRouter();
   const [, startTransition] = React.useTransition();
-  const [renameOpen, setRenameOpen] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   // Keep the trigger from activating the row's link or starting a drag.
@@ -65,7 +73,7 @@ export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectR
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="right" className="w-48">
-          <DropdownMenuItem onClick={() => setRenameOpen(true)}>Rename</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>Move to section</DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="max-h-72 w-56 overflow-y-auto">
@@ -97,36 +105,29 @@ export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectR
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Rename project</DialogTitle>
-            <DialogDescription>Give this project a new name.</DialogDescription>
+            <DialogTitle>Edit project</DialogTitle>
+            <DialogDescription>
+              Update this project&apos;s name, description, section, and tag.
+            </DialogDescription>
           </DialogHeader>
-          <form
+          <ProjectForm
             action={async (formData) => {
-              await renameProject(formData);
-              setRenameOpen(false);
+              await updateProject(formData);
+              setEditOpen(false);
             }}
-            className="space-y-4"
-          >
-            <input type="hidden" name="projectId" value={project.id} />
-            <Input
-              name="name"
-              defaultValue={project.name}
-              required
-              minLength={2}
-              maxLength={80}
-              aria-label="Project name"
-              autoFocus
-            />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>
-                Cancel
-              </Button>
-              <SubmitButton pendingLabel="Saving...">Save</SubmitButton>
-            </DialogFooter>
-          </form>
+            projectId={project.id}
+            sections={sections}
+            defaultName={project.name}
+            defaultDescription={project.description ?? ""}
+            defaultSectionId={project.sectionId ?? ""}
+            defaultTag={project.tag}
+            idPrefix={`edit-project-${project.id}`}
+            submitLabel="Save changes"
+            pendingLabel="Saving..."
+          />
         </DialogContent>
       </Dialog>
 

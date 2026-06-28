@@ -4,8 +4,7 @@ import * as React from "react";
 import { Plus } from "lucide-react";
 
 import { createProject } from "@/app/actions";
-import { SubmitButton } from "@/components/submit-button";
-import { TagPicker } from "@/components/tag-picker";
+import { ProjectForm } from "@/components/project-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,11 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-
-const selectClassName =
-  "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 type CreateProjectDialogProps = {
   trigger?: React.ReactElement;
@@ -51,49 +45,14 @@ export function CreateProjectDialog({ trigger, sections, defaultSectionId }: Cre
             Spin up a fresh Kanban workspace with default columns and its own task flow.
           </DialogDescription>
         </DialogHeader>
-        <form action={createProject} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="project-name">
-              Project name
-            </label>
-            <Input id="project-name" name="name" placeholder="Website redesign" required />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="project-description">
-              Description
-            </label>
-            <Textarea
-              id="project-description"
-              name="description"
-              rows={4}
-              placeholder="Scope, delivery notes, or how this board will be used."
-            />
-          </div>
-          {sections && sections.length > 0 ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="project-section">
-                Section
-              </label>
-              <select
-                id="project-section"
-                name="sectionId"
-                defaultValue={defaultSectionId ?? ""}
-                className={selectClassName}
-              >
-                <option value="">No section</option>
-                {sections.map((section) => (
-                  <option key={section.id} value={section.id}>
-                    {section.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          <TagPicker idPrefix="project-tag" />
-          <div className="flex justify-end">
-            <SubmitButton pendingLabel="Creating project...">Create project</SubmitButton>
-          </div>
-        </form>
+        <ProjectForm
+          action={createProject}
+          sections={sections}
+          defaultSectionId={defaultSectionId}
+          idPrefix="project"
+          submitLabel="Create project"
+          pendingLabel="Creating project..."
+        />
       </DialogContent>
     </Dialog>
   );
