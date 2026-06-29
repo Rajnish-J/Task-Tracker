@@ -197,11 +197,48 @@ function DashboardBody({
               <span>Tagged items</span>
               <TagBadge tag={selectedTag} />
               <span className="text-sm font-normal text-muted-foreground">
+                {tagged.sections.length} sections · {tagged.projects.length} projects ·{" "}
                 {tagged.boards.length} boards · {tagged.items.length} tasks
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Sections</h3>
+              {tagged.sections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sections with this tag.</p>
+              ) : (
+                <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+                  {tagged.sections.map((section) => (
+                    <li key={section.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <Link href={`/sections/${section.id}`} className="font-medium hover:underline">
+                        {section.name}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">Section</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Projects</h3>
+              {tagged.projects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No projects with this tag.</p>
+              ) : (
+                <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+                  {tagged.projects.map((project) => (
+                    <li key={project.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <Link href={`/projects/${project.id}`} className="font-medium hover:underline">
+                        {project.name}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">Project</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">Boards</h3>
               {tagged.boards.length === 0 ? (

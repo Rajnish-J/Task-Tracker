@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { columns, PRIORITY_VALUES, storyTasks, tasks } from "@/lib/db/schema";
+import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tasks } from "@/lib/db/schema";
 
 type Priority = (typeof PRIORITY_VALUES)[number];
 
@@ -70,10 +70,16 @@ export async function getProjectBoard(projectId: string) {
   return project;
 }
 
-// Boards (cards) and tasks (checklist items) carrying a given tag, each with the
-// project context needed to link back to them from the dashboard.
+// Everything carrying a given tag — sections, projects, boards (cards) and tasks
+// (checklist items) — each with the context needed to link back to it from the
+// dashboard.
 export async function getTaggedItems(tagId: string) {
-  const [boards, items] = await Promise.all([
+  const [sectionRows, boards, items] = await Promise.all([
+    db.query.sections.findMany({
+      where: eq(sections.tagId, tagId),
+      orderBy: (sections) => [asc(sections.name)],
+      columns: { id: true, name: true },
+    }),
     db.query.tasks.findMany({
       where: eq(tasks.tagId, tagId),
       orderBy: (tasks) => [desc(tasks.updatedAt)],
@@ -98,7 +104,27 @@ export async function getTaggedItems(tagId: string) {
     }),
   ]);
 
-  return { boards, items };
+  // Every project involved in this tag, so the list mirrors the filtered KPIs:
+  // projects carrying the tag directly, projects inside a tagged section, and
+  // projects that merely contain a tagged card or checklist item.
+  const projectIdSet = await getProjectIdsMatchingTag(tagId);
+  for (const board of boards) {
+    projectIdSet.add(board.projectId);
+  }
+  for (const item of items) {
+    const projectId = item.task?.project?.id;
+    if (projectId) projectIdSet.add(projectId);
+  }
+
+  const projectRows = projectIdSet.size
+    ? await db.query.projects.findMany({
+        where: inArray(projects.id, [...projectIdSet]),
+        orderBy: (projects) => [asc(projects.name)],
+        columns: { id: true, name: true },
+      })
+    : [];
+
+  return { sections: sectionRows, projects: projectRows, boards, items };
 }
 
 export type TaggedItems = Awaited<ReturnType<typeof getTaggedItems>>;
@@ -125,6 +151,45 @@ export const STATUS_COLORS: Record<string, string> = {
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
+// Projects whose every card should be counted for a tag filter: a project that
+// carries the tag itself, or one that belongs to a section (or any ancestor
+// section) carrying the tag. A tagged section covers its whole subtree.
+async function getProjectIdsMatchingTag(tagId: string): Promise<Set<string>> {
+  const [sectionRows, projectRows] = await Promise.all([
+    db.query.sections.findMany({ columns: { id: true, parentId: true, tagId: true } }),
+    db.query.projects.findMany({ columns: { id: true, tagId: true, sectionId: true } }),
+  ]);
+
+  const childrenByParent = new Map<string, string[]>();
+  for (const section of sectionRows) {
+    if (!section.parentId) continue;
+    const list = childrenByParent.get(section.parentId) ?? [];
+    list.push(section.id);
+    childrenByParent.set(section.parentId, list);
+  }
+
+  // Sections carrying the tag, plus every descendant section (visited guards a
+  // malformed cycle).
+  const matchedSectionIds = new Set<string>();
+  const queue = sectionRows.filter((section) => section.tagId === tagId).map((section) => section.id);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (matchedSectionIds.has(current)) continue;
+    matchedSectionIds.add(current);
+    for (const child of childrenByParent.get(current) ?? []) {
+      queue.push(child);
+    }
+  }
+
+  const matchedProjectIds = new Set<string>();
+  for (const project of projectRows) {
+    if (project.tagId === tagId || (project.sectionId && matchedSectionIds.has(project.sectionId))) {
+      matchedProjectIds.add(project.id);
+    }
+  }
+  return matchedProjectIds;
+}
+
 export async function getDashboardData(tagId?: string) {
   const now = new Date();
   const soonThreshold = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -143,18 +208,41 @@ export async function getDashboardData(tagId?: string) {
     },
   });
 
-  // When a tag filter is active, narrow every column to the cards carrying that
-  // tag before aggregating, so all KPIs/charts/per-project rows reflect only the
-  // tagged cards. Projects with no matching cards stay in the list, with zeros.
-  const scopedProjects = tagId
-    ? projects.map((project) => ({
+  // When a tag filter is active, narrow the data to anything carrying that tag.
+  // A whole project's cards are kept when the project itself, or its section
+  // (or any ancestor section), carries the tag; otherwise only the individual
+  // cards carrying the tag — directly or via one of their checklist items — are
+  // kept. Projects with no matching cards stay in the list, with zeros.
+  let scopedProjects = projects;
+  let matchedProjectIds: Set<string> | null = null;
+  if (tagId) {
+    const matched = await getProjectIdsMatchingTag(tagId);
+    matchedProjectIds = matched;
+
+    scopedProjects = projects.map((project) => {
+      if (matched.has(project.id)) {
+        return project;
+      }
+      return {
         ...project,
         columns: project.columns.map((column) => ({
           ...column,
-          tasks: column.tasks.filter((task) => task.tagId === tagId),
+          tasks: column.tasks.filter(
+            (task) =>
+              task.tagId === tagId ||
+              task.storyTasks.some((story) => story.tagId === tagId),
+          ),
         })),
-      }))
-    : projects;
+      };
+    });
+  }
+
+  // A project is "involved" in the active tag when it carries the tag itself or
+  // sits in a tagged section (matchedProjectIds), or when it has at least one
+  // card kept by the narrowing above. Used to scope the Projects KPI/list so the
+  // count reflects the filter instead of the whole workspace.
+  const isInvolved = (projectId: string, keptTaskCount: number) =>
+    !tagId || matchedProjectIds!.has(projectId) || keptTaskCount > 0;
 
   let totalTasks = 0;
   let todo = 0;
@@ -244,6 +332,12 @@ export async function getDashboardData(tagId?: string) {
     };
   });
 
+  // When a tag filter is active, keep only the projects actually involved in the
+  // tag so the Projects count and per-project table match the rest of the view.
+  const visibleProjectRows = projectRows.filter((project) =>
+    isInvolved(project.id, project.taskCount),
+  );
+
   const statusBreakdown = Array.from(statusByName.entries()).map(([name, { count, key }]) => ({
     name,
     count,
@@ -256,7 +350,7 @@ export async function getDashboardData(tagId?: string) {
   }));
 
   return {
-    totalProjects: projects.length,
+    totalProjects: visibleProjectRows.length,
     totalTasks,
     todo,
     inProgress,
@@ -272,7 +366,7 @@ export async function getDashboardData(tagId?: string) {
       { name: "Done", count: storyTasksDone },
       { name: "Open", count: totalStoryTasks - storyTasksDone },
     ],
-    projects: projectRows,
+    projects: visibleProjectRows,
   };
 }
 
@@ -321,6 +415,9 @@ export type SectionNode = {
   slug: string;
   parentId: string | null;
   position: number;
+  // Carried so the sidebar's edit dialog can prefill every field.
+  description: string | null;
+  tag: Tag | null;
   projects: SectionProject[];
   children: SectionNode[];
   // Total tasks across this section's own projects plus every descendant's.
@@ -348,7 +445,15 @@ export async function getSectionsTree(): Promise<{
   const [sectionRows, projectRows] = await Promise.all([
     db.query.sections.findMany({
       orderBy: (sections) => [asc(sections.position), asc(sections.name)],
-      columns: { id: true, name: true, slug: true, parentId: true, position: true },
+      columns: {
+        id: true,
+        name: true,
+        slug: true,
+        parentId: true,
+        position: true,
+        description: true,
+      },
+      with: { tag: true },
     }),
     db.query.projects.findMany({
       orderBy: (projects) => [
@@ -369,6 +474,8 @@ export async function getSectionsTree(): Promise<{
       slug: section.slug,
       parentId: section.parentId,
       position: section.position,
+      description: section.description,
+      tag: section.tag ?? null,
       projects: [],
       children: [],
       taskCount: 0,

@@ -1,0 +1,102 @@
+"use client";
+
+import * as React from "react";
+
+import { SubmitButton } from "@/components/submit-button";
+import { TagPicker } from "@/components/tag-picker";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
+
+type TagOption = { id: string; name: string; color: string };
+
+export type SectionFormProps = {
+  // Server action the form submits to (createSection / updateSection).
+  action: (formData: FormData) => void | Promise<void>;
+  // Present only when editing — emitted as a hidden field for the update action.
+  sectionId?: string;
+  // Flattened section list ("Parent / Child" labels) for the optional parent picker.
+  sections?: { id: string; label: string }[];
+  defaultName?: string;
+  defaultDescription?: string;
+  defaultParentId?: string;
+  defaultTag?: TagOption | null;
+  // Namespaces field ids so multiple forms can coexist (e.g. one per sidebar row).
+  idPrefix?: string;
+  submitLabel: React.ReactNode;
+  pendingLabel: string;
+};
+
+// Shared field set for both creating and editing a section. The create dialog and
+// the sidebar's edit dialog render this with different actions and defaults.
+export function SectionForm({
+  action,
+  sectionId,
+  sections,
+  defaultName = "",
+  defaultDescription = "",
+  defaultParentId,
+  defaultTag,
+  idPrefix = "section",
+  submitLabel,
+  pendingLabel,
+}: SectionFormProps) {
+  return (
+    <form action={action} className="space-y-4">
+      {sectionId ? <input type="hidden" name="sectionId" value={sectionId} /> : null}
+      <div className="space-y-2">
+        <label className="text-sm font-medium" htmlFor={`${idPrefix}-name`}>
+          Section name
+        </label>
+        <Input
+          id={`${idPrefix}-name`}
+          name="name"
+          placeholder="AI Engineer"
+          defaultValue={defaultName}
+          required
+          minLength={2}
+          maxLength={80}
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium" htmlFor={`${idPrefix}-description`}>
+          Description
+        </label>
+        <Textarea
+          id={`${idPrefix}-description`}
+          name="description"
+          rows={3}
+          maxLength={240}
+          defaultValue={defaultDescription}
+          placeholder="What this group of projects is about."
+        />
+      </div>
+      {sections && sections.length > 0 ? (
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor={`${idPrefix}-parent`}>
+            Parent section
+          </label>
+          <select
+            id={`${idPrefix}-parent`}
+            name="parentId"
+            defaultValue={defaultParentId ?? ""}
+            className={nativeSelectClass}
+          >
+            <option className={nativeSelectOptionClass} value="">
+              Top level (no parent)
+            </option>
+            {sections.map((section) => (
+              <option className={nativeSelectOptionClass} key={section.id} value={section.id}>
+                {section.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      <TagPicker idPrefix={`${idPrefix}-tag`} defaultTag={defaultTag} />
+      <div className="flex justify-end">
+        <SubmitButton pendingLabel={pendingLabel}>{submitLabel}</SubmitButton>
+      </div>
+    </form>
+  );
+}

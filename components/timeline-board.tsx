@@ -20,6 +20,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FolderKanban,
   ListFilter,
   X,
@@ -308,6 +310,14 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
 
   const visibleTaskCount = groups.reduce((sum, g) => sum + g.rows.length, 0);
 
+  // Collapse/expand every project group at once. When all are already
+  // collapsed, the same button expands them back.
+  const allGroupsCollapsed =
+    groups.length > 0 && groups.every((g) => collapsedGroups.has(g.id));
+  function toggleCollapseAll() {
+    setCollapsedGroups(allGroupsCollapsed ? new Set() : new Set(groups.map((g) => g.id)));
+  }
+
   function openTask(id: string) {
     router.push(`/timeline?task=${id}`);
   }
@@ -367,6 +377,22 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
             {hasActiveFilters ? (
               <Button variant="ghost" size="sm" onClick={clearAll} className="text-muted-foreground">
                 <X className="size-3.5" /> Clear all
+              </Button>
+            ) : null}
+            {groups.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleCollapseAll}
+                className="gap-1.5"
+                aria-pressed={allGroupsCollapsed}
+              >
+                {allGroupsCollapsed ? (
+                  <ChevronsUpDown className="size-3.5" />
+                ) : (
+                  <ChevronsDownUp className="size-3.5" />
+                )}
+                {allGroupsCollapsed ? "Expand all" : "Collapse all"}
               </Button>
             ) : null}
           </div>

@@ -4,7 +4,7 @@ import * as React from "react";
 import { FolderTree, Plus } from "lucide-react";
 
 import { createSection } from "@/app/actions";
-import { SubmitButton } from "@/components/submit-button";
+import { SectionForm } from "@/components/section-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,11 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
-
-const selectClassName = nativeSelectClass;
 
 type CreateSectionDialogProps = {
   trigger?: React.ReactElement;
@@ -51,53 +46,22 @@ export function CreateSectionDialog({ trigger, sections, defaultParentId }: Crea
             board of every card in its subtree.
           </DialogDescription>
         </DialogHeader>
-        <form action={createSection} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="section-name">
-              Section name
-            </label>
-            <Input id="section-name" name="name" placeholder="AI Engineer" required />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="section-description">
-              Description
-            </label>
-            <Textarea
-              id="section-description"
-              name="description"
-              rows={3}
-              placeholder="What this group of projects is about."
-            />
-          </div>
-          {sections && sections.length > 0 ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="section-parent">
-                Parent section
-              </label>
-              <select
-                id="section-parent"
-                name="parentId"
-                defaultValue={defaultParentId ?? ""}
-                className={selectClassName}
-              >
-                <option className={nativeSelectOptionClass} value="">
-                  Top level (no parent)
-                </option>
-                {sections.map((section) => (
-                  <option className={nativeSelectOptionClass} key={section.id} value={section.id}>
-                    {section.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          <div className="flex justify-end">
-            <SubmitButton pendingLabel="Creating section...">
+        <SectionForm
+          action={async (formData) => {
+            await createSection(formData);
+            setOpen(false);
+          }}
+          sections={sections}
+          defaultParentId={defaultParentId}
+          idPrefix="create-section"
+          submitLabel={
+            <>
               <Plus className="size-4" />
               Create section
-            </SubmitButton>
-          </div>
-        </form>
+            </>
+          }
+          pendingLabel="Creating section..."
+        />
       </DialogContent>
     </Dialog>
   );

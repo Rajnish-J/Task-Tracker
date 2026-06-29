@@ -24,6 +24,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { reorderProjects } from "@/app/actions";
 import { ProjectRowMenu } from "@/components/project-row-menu";
+import { SectionRowMenu } from "@/components/section-row-menu";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -37,6 +38,18 @@ import { cn } from "@/lib/utils";
 import type { SectionNode, SectionProject } from "@/lib/data";
 
 const INDENT = 12;
+
+// Ids of a node and all of its descendant sections — excluded from that node's
+// parent picker so a section can't be moved under itself or its own children.
+function collectSubtreeIds(node: SectionNode): Set<string> {
+  const ids = new Set<string>([node.id]);
+  for (const child of node.children) {
+    for (const id of collectSubtreeIds(child)) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
 
 export function NavSections({
   tree,
@@ -110,6 +123,11 @@ function SectionRow({
   const hasChildren = node.children.length > 0 || node.projects.length > 0;
   const buttonPadding = depth * INDENT + (hasChildren ? 22 : 8);
 
+  // Parent picker for this section's edit dialog can't offer the section itself
+  // or any of its descendants (that would create a cycle).
+  const subtreeIds = collectSubtreeIds(node);
+  const parentOptions = sections.filter((section) => !subtreeIds.has(section.id));
+
   return (
     <>
       <SidebarMenuItem>
@@ -128,12 +146,23 @@ function SectionRow({
           render={<Link href={`/sections/${node.id}`} />}
           isActive={currentSectionId === node.id}
           tooltip={node.name}
+          className="pr-16"
           style={{ paddingLeft: buttonPadding }}
         >
           <FolderTree className="size-4" />
           <span>{node.name}</span>
         </SidebarMenuButton>
-        <SidebarMenuBadge>{node.taskCount}</SidebarMenuBadge>
+        <SidebarMenuBadge className="right-8">{node.taskCount}</SidebarMenuBadge>
+        <SectionRowMenu
+          section={{
+            id: node.id,
+            name: node.name,
+            description: node.description,
+            parentId: node.parentId,
+            tag: node.tag,
+          }}
+          sections={parentOptions}
+        />
       </SidebarMenuItem>
 
       {open && hasChildren ? (

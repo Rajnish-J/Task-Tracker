@@ -81,7 +81,7 @@ export function SectionBoard({ sectionId, lanes }: SectionBoardProps) {
                   <Badge variant="outline">{lane.tasks.length}</Badge>
                 </div>
 
-                <div className="flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto">
+                <div className="thin-scrollbar flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto">
                   {lane.tasks.length === 0 ? (
                     <p className="rounded-md border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground">
                       No cards

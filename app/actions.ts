@@ -612,6 +612,7 @@ const createSectionSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   parentId: z.string().optional(),
+  ...tagFields,
 });
 
 export async function createSection(formData: FormData) {
@@ -619,9 +620,11 @@ export async function createSection(formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     parentId: (formData.get("parentId") as string) || undefined,
+    ...readTagFields(formData),
   });
 
   const slug = await resolveUniqueSlug(values.name, "sections");
+  const tagId = await resolveTagId(values);
 
   const [lastSection] = await db
     .select({ position: sections.position })
@@ -636,6 +639,7 @@ export async function createSection(formData: FormData) {
       slug,
       description: values.description || null,
       parentId: values.parentId || null,
+      tagId,
       position: (lastSection?.position ?? -1) + 1,
     })
     .returning({ id: sections.id });
@@ -649,6 +653,7 @@ const updateSectionSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   parentId: z.string().optional(),
+  ...tagFields,
 });
 
 export async function updateSection(formData: FormData) {
@@ -657,6 +662,7 @@ export async function updateSection(formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     parentId: (formData.get("parentId") as string) || undefined,
+    ...readTagFields(formData),
   });
 
   const newParentId = values.parentId || null;
@@ -693,6 +699,7 @@ export async function updateSection(formData: FormData) {
     existing.name !== values.name
       ? await resolveUniqueSlug(values.name, "sections")
       : undefined;
+  const tagId = await resolveTagId(values);
 
   await db
     .update(sections)
@@ -700,6 +707,7 @@ export async function updateSection(formData: FormData) {
       name: values.name,
       description: values.description || null,
       parentId: newParentId,
+      tagId,
       ...(slug ? { slug } : {}),
     })
     .where(eq(sections.id, values.sectionId));

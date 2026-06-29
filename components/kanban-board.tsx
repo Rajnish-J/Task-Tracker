@@ -23,14 +23,11 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { moveTask } from "@/app/actions";
-import { BoardSkeleton } from "@/components/board-skeleton";
-import { BoardTagFilter } from "@/components/board-tag-filter";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
 import { TaskCardContent, type TaskCardData } from "@/components/task-card-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { collectBoardTags, taskMatchesTag } from "@/lib/board-filter";
 import { cn } from "@/lib/utils";
 
 type Task = TaskCardData;
@@ -53,24 +50,6 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
   const router = useRouter();
   const [board, setBoard] = React.useState<Column[]>(project.columns);
   const [activeId, setActiveId] = React.useState<string | null>(null);
-  const [selectedTagId, setSelectedTagId] = React.useState("");
-  // Brief skeleton flash while the filter re-applies, for a clear "loading" beat.
-  const [isFiltering, setIsFiltering] = React.useState(false);
-  const filterTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  React.useEffect(
-    () => () => {
-      if (filterTimeout.current) clearTimeout(filterTimeout.current);
-    },
-    [],
-  );
-
-  function handleTagChange(tagId: string) {
-    setSelectedTagId(tagId);
-    setIsFiltering(true);
-    if (filterTimeout.current) clearTimeout(filterTimeout.current);
-    filterTimeout.current = setTimeout(() => setIsFiltering(false), 300);
-  }
 
   // Keep a ref of the live board so drag handlers can read the latest state
   // synchronously when computing the persisted position.
@@ -124,22 +103,6 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
         : null,
     [activeId, board],
   );
-
-  // Tags present on this board, for the filter dropdown.
-  const availableTags = React.useMemo(
-    () => collectBoardTags(board.flatMap((column) => column.tasks)),
-    [board],
-  );
-
-  // The columns to render: filtered by the selected tag (drag/move logic still
-  // operates on the unfiltered `board` state).
-  const visibleBoard = React.useMemo(() => {
-    if (!selectedTagId) return board;
-    return board.map((column) => ({
-      ...column,
-      tasks: column.tasks.filter((task) => taskMatchesTag(task, selectedTagId)),
-    }));
-  }, [board, selectedTagId]);
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
@@ -220,12 +183,6 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {availableTags.length > 0 ? (
-        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2 md:px-6">
-          <BoardTagFilter tags={availableTags} value={selectedTagId} onChange={handleTagChange} />
-        </div>
-      ) : null}
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -234,20 +191,16 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <ScrollArea className="h-full flex-1">
-          {isFiltering ? (
-            <BoardSkeleton columns={visibleBoard.length || 4} />
-          ) : (
-            <div className="grid min-h-full grid-flow-col gap-4 p-4 md:auto-cols-[22rem] md:p-6">
-              {visibleBoard.map((column) => (
-                <BoardColumn
-                  key={column.id}
-                  column={column}
-                  projectId={project.id}
-                  columnOptions={board.map((c) => ({ id: c.id, name: c.name }))}
-                />
-              ))}
-            </div>
-          )}
+          <div className="grid min-h-full grid-flow-col gap-4 p-4 md:auto-cols-[22rem] md:p-6">
+            {board.map((column) => (
+              <BoardColumn
+                key={column.id}
+                column={column}
+                projectId={project.id}
+                columnOptions={board.map((c) => ({ id: c.id, name: c.name }))}
+              />
+            ))}
+          </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
 
@@ -285,7 +238,7 @@ function BoardColumn({ column, projectId, columnOptions }: BoardColumnProps) {
         <div
           ref={setNodeRef}
           className={cn(
-            "flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto rounded-md transition-colors",
+            "thin-scrollbar flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto rounded-md transition-colors",
             isOver && "bg-primary/5 ring-1 ring-primary/20",
           )}
         >

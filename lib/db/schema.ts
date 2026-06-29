@@ -45,6 +45,7 @@ export const sections = pgTable(
     description: text("description"),
     position: integer("position").notNull().default(0),
     parentId: text("parentId"),
+    tagId: text("tagId").references(() => tags.id, { onDelete: "set null" }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .notNull()
@@ -53,6 +54,7 @@ export const sections = pgTable(
   },
   (table) => [
     index("Section_parentId_idx").on(table.parentId),
+    index("Section_tagId_idx").on(table.tagId),
     foreignKey({
       columns: [table.parentId],
       foreignColumns: [table.id],
@@ -178,6 +180,7 @@ export const tagsRelations = relations(tags, ({ many }) => ({
   projects: many(projects),
   tasks: many(tasks),
   storyTasks: many(storyTasks),
+  sections: many(sections),
 }));
 
 export const sectionsRelations = relations(sections, ({ one, many }) => ({
@@ -188,6 +191,10 @@ export const sectionsRelations = relations(sections, ({ one, many }) => ({
   }),
   children: many(sections, { relationName: "sectionHierarchy" }),
   projects: many(projects),
+  tag: one(tags, {
+    fields: [sections.tagId],
+    references: [tags.id],
+  }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
