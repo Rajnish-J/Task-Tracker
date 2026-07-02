@@ -5,8 +5,14 @@ import * as React from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
 type TagOption = { id: string; name: string; color: string };
 
@@ -76,21 +82,26 @@ export function SectionForm({
           <label className="text-sm font-medium" htmlFor={`${idPrefix}-parent`}>
             Parent section
           </label>
-          <select
-            id={`${idPrefix}-parent`}
+          <Select
             name="parentId"
             defaultValue={defaultParentId ?? ""}
-            className={nativeSelectClass}
+            items={[
+              { label: "Top level (no parent)", value: "" },
+              ...sections.map((section) => ({ label: section.label, value: section.id })),
+            ]}
           >
-            <option className={nativeSelectOptionClass} value="">
-              Top level (no parent)
-            </option>
-            {sections.map((section) => (
-              <option className={nativeSelectOptionClass} key={section.id} value={section.id}>
-                {section.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id={`${idPrefix}-parent`} className="w-full">
+              <SelectValue placeholder="Top level (no parent)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Top level (no parent)</SelectItem>
+              {sections.map((section) => (
+                <SelectItem key={section.id} value={section.id}>
+                  {section.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       ) : null}
       <TagPicker idPrefix={`${idPrefix}-tag`} defaultTag={defaultTag} />

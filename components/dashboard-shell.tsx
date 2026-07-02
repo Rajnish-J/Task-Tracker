@@ -5,14 +5,19 @@ import { usePathname, useRouter } from "next/navigation";
 import { Tag as TagIcon } from "lucide-react";
 
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
 type TagOption = { id: string; name: string; color: string };
 
-const selectClassName = cn(nativeSelectClass, "w-auto min-w-48");
+const ALL = "";
 
 // Client shell for the dashboard. It owns the tag filter and wraps the
 // navigation in a transition so `isPending` flips the moment the user picks a
@@ -72,23 +77,31 @@ export function DashboardShell({
             >
               Filter by tag
             </label>
-            <select
-              id="dashboard-tag-filter"
-              value={selectedTagId ?? ""}
-              onChange={(event) => handleChange(event.target.value)}
-              className={selectClassName}
-              aria-label="Filter by tag"
+            <Select
+              value={selectedTagId ?? ALL}
+              onValueChange={(next) => handleChange(next ?? ALL)}
               disabled={isPending}
+              items={[
+                { label: "All tags", value: ALL },
+                ...tags.map((tag) => ({ label: tag.name, value: tag.id })),
+              ]}
             >
-              <option className={nativeSelectOptionClass} value="">
-                All tags
-              </option>
-              {tags.map((tag) => (
-                <option className={nativeSelectOptionClass} key={tag.id} value={tag.id}>
-                  {tag.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="dashboard-tag-filter"
+                aria-label="Filter by tag"
+                className="h-9 min-w-48"
+              >
+                <SelectValue placeholder="All tags" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All tags</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id}>
+                    {tag.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </header>

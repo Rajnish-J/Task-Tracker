@@ -466,7 +466,6 @@ export async function updateTask(formData: FormData) {
   });
 
   revalidatePath(`/projects/${values.projectId}`);
-  redirect(`/projects/${values.projectId}?task=${values.taskId}`);
 }
 
 export async function deleteTask(formData: FormData) {

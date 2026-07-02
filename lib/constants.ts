@@ -1,7 +1,6 @@
 export const DEFAULT_COLUMNS = [
   { name: "To Do", color: "bg-sky-500/15 text-sky-600 dark:text-sky-300" },
   { name: "In Progress", color: "bg-amber-500/15 text-amber-600 dark:text-amber-300" },
-  { name: "Review", color: "bg-violet-500/15 text-violet-600 dark:text-violet-300" },
   { name: "Done", color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" },
 ] as const;
 

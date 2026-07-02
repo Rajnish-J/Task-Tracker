@@ -11,7 +11,6 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -108,33 +107,51 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
     setActiveId(String(event.active.id));
   }
 
-  function handleDragOver(event: DragOverEvent) {
+  function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    setActiveId(null);
     if (!over) return;
 
-    const activeId = String(active.id);
+    const movedId = String(active.id);
     const overId = String(over.id);
-    const fromColumnId = findColumnId(activeId);
+
+    // The board is not mutated during the drag, so compute the whole move here.
+    const fromColumnId = findColumnId(movedId);
     const toColumnId = findColumnId(overId);
+    if (!fromColumnId || !toColumnId) return;
 
-    if (!fromColumnId || !toColumnId || fromColumnId === toColumnId) {
-      return;
-    }
+    const current = boardRef.current;
+    const fromColumn = current.find((column) => column.id === fromColumnId);
+    const toColumn = current.find((column) => column.id === toColumnId);
+    if (!fromColumn || !toColumn) return;
 
-    setBoard((prev) => {
-      const fromColumn = prev.find((column) => column.id === fromColumnId);
-      const toColumn = prev.find((column) => column.id === toColumnId);
-      if (!fromColumn || !toColumn) return prev;
+    const movedTask = fromColumn.tasks.find((task) => task.id === movedId);
+    if (!movedTask) return;
 
-      const movedTask = fromColumn.tasks.find((task) => task.id === activeId);
-      if (!movedTask) return prev;
+    let nextBoard: Column[];
+    let toIndex: number;
 
+    if (fromColumnId === toColumnId) {
+      // Same-column reorder. When dropped on empty space (overId is the column
+      // id, not a task) move the card to the end.
+      const oldIndex = fromColumn.tasks.findIndex((task) => task.id === movedId);
+      const overIndex = fromColumn.tasks.findIndex((task) => task.id === overId);
+      const newIndex = overIndex >= 0 ? overIndex : fromColumn.tasks.length - 1;
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+      nextBoard = current.map((column) =>
+        column.id === fromColumnId
+          ? { ...column, tasks: arrayMove(column.tasks, oldIndex, newIndex) }
+          : column,
+      );
+      toIndex = newIndex;
+    } else {
+      // Cross-column move: remove from the source, splice into the target at the
+      // hovered card's index (or append when dropped on the column itself).
       const overIndex = toColumn.tasks.findIndex((task) => task.id === overId);
       const insertAt = overIndex >= 0 ? overIndex : toColumn.tasks.length;
-
-      return prev.map((column) => {
+      nextBoard = current.map((column) => {
         if (column.id === fromColumnId) {
-          return { ...column, tasks: column.tasks.filter((task) => task.id !== activeId) };
+          return { ...column, tasks: column.tasks.filter((task) => task.id !== movedId) };
         }
         if (column.id === toColumnId) {
           const next = [...column.tasks];
@@ -143,40 +160,15 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
         }
         return column;
       });
-    });
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    setActiveId(null);
-    if (!over) return;
-
-    const movedId = String(active.id);
-    const overId = String(over.id);
-    const columnId = findColumnId(movedId);
-    if (!columnId) return;
-
-    // Same-column reorder: arrayMove within the column.
-    let nextBoard = boardRef.current;
-    const overColumnId = findColumnId(overId);
-    if (overColumnId === columnId && movedId !== overId) {
-      nextBoard = boardRef.current.map((column) => {
-        if (column.id !== columnId) return column;
-        const oldIndex = column.tasks.findIndex((task) => task.id === movedId);
-        const newIndex = column.tasks.findIndex((task) => task.id === overId);
-        if (oldIndex < 0 || newIndex < 0) return column;
-        return { ...column, tasks: arrayMove(column.tasks, oldIndex, newIndex) };
-      });
-      setBoard(nextBoard);
+      toIndex = insertAt;
     }
 
-    const targetColumn = nextBoard.find((column) => column.id === columnId);
-    const toIndex = targetColumn?.tasks.findIndex((task) => task.id === movedId) ?? 0;
+    setBoard(nextBoard);
 
     void moveTask({
       projectId: project.id,
       taskId: movedId,
-      toColumnId: columnId,
+      toColumnId,
       toIndex: Math.max(0, toIndex),
     }).then(() => router.refresh());
   }
@@ -187,11 +179,10 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <ScrollArea className="h-full flex-1">
-          <div className="grid min-h-full grid-flow-col gap-4 p-4 md:auto-cols-[22rem] md:p-6">
+          <div className="grid min-h-full grid-flow-col gap-4 p-4 auto-cols-[minmax(16rem,1fr)] md:auto-cols-[minmax(20rem,1fr)] md:p-6">
             {board.map((column) => (
               <BoardColumn
                 key={column.id}
@@ -222,7 +213,7 @@ function BoardColumn({ column, projectId, columnOptions }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
-    <section className="flex h-[calc(100vh-13rem)] w-[20rem] flex-col rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur md:w-auto">
+    <section className="flex h-[calc(100vh-13rem)] flex-col rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -270,7 +261,6 @@ type SortableTaskCardProps = {
 };
 
 function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
-  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
@@ -287,16 +277,7 @@ function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      role="button"
-      tabIndex={0}
-      onClick={() => router.push(`/projects/${projectId}?task=${task.id}`)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          router.push(`/projects/${projectId}?task=${task.id}`);
-        }
-      }}
-      className="cursor-grab touch-none rounded-lg border border-border/60 bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+      className="group cursor-grab touch-none rounded-lg border border-border/60 bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
     >
       <TaskCardContent task={task} projectId={projectId} />
     </div>

@@ -2,12 +2,17 @@
 
 import { Tag as TagIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type TagOption = { id: string; name: string; color: string };
 
-const selectClassName = cn(nativeSelectClass, "h-9 w-auto min-w-44");
+const ALL = "";
 
 // Client-side tag filter for the Kanban / section boards. Unlike the dashboard
 // filter it doesn't navigate — the parent board filters its cards in state, so
@@ -25,28 +30,33 @@ export function BoardTagFilter({
     return null;
   }
 
+  const items = [
+    { label: "All tags", value: ALL },
+    ...tags.map((tag) => ({ label: tag.name, value: tag.id })),
+  ];
+
   return (
     <div className="flex items-center gap-2">
       <TagIcon className="size-4 text-muted-foreground" />
       <label className="text-sm font-medium text-muted-foreground" htmlFor="board-tag-filter">
         Filter by tag
       </label>
-      <select
-        id="board-tag-filter"
+      <Select
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={selectClassName}
-        aria-label="Filter by tag"
+        onValueChange={(next) => onChange(next ?? ALL)}
+        items={items}
       >
-        <option className={nativeSelectOptionClass} value="">
-          All tags
-        </option>
-        {tags.map((tag) => (
-          <option className={nativeSelectOptionClass} key={tag.id} value={tag.id}>
-            {tag.name}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger id="board-tag-filter" aria-label="Filter by tag" className="h-9 min-w-44">
+          <SelectValue placeholder="All tags" />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((item) => (
+            <SelectItem key={item.value || "__all__"} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

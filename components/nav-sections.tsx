@@ -107,11 +107,13 @@ function SectionRow({
   currentProjectId?: string;
   collapseNonce?: number;
 }) {
-  const [open, setOpen] = React.useState(true);
+  // Sections start collapsed so a section's projects (and child sections) stay
+  // hidden until the user expands the row.
+  const [open, setOpen] = React.useState(false);
 
   // Collapse this row (and, by unmounting them, its descendants) whenever the
-  // sidebar's "Collapse all" nonce changes. Skip the initial mount so rows stay
-  // expanded by default.
+  // sidebar's "Collapse all" nonce changes. Rows already start collapsed, so this
+  // only matters after a row has been expanded.
   const lastNonce = React.useRef(collapseNonce);
   React.useEffect(() => {
     if (lastNonce.current !== collapseNonce) {

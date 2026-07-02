@@ -26,7 +26,7 @@ export default function SectionLoading() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <BoardSkeleton columns={5} />
+        <BoardSkeleton columns={3} />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   CalendarDays,
@@ -9,23 +10,37 @@ import {
   CircleDot,
   FileText,
   ListChecks,
+  Pencil,
   Plus,
+  Trash2,
   Users,
 } from "lucide-react";
 
-import { createStoryTaskOnBoard, toggleStoryTaskOnBoard } from "@/app/actions";
+import { createStoryTaskOnBoard, deleteTask, toggleStoryTaskOnBoard } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
 import { TagPicker } from "@/components/tag-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
-
-const selectClassName = cn(nativeSelectClass, "h-8 w-auto px-2 py-0 text-xs");
 
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -69,8 +84,10 @@ export function TaskCardContent({
   projectId?: string;
   projectName?: string;
 }) {
+  const router = useRouter();
   const [tasksOpen, setTasksOpen] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
   const totalTasks = task.storyTasks.length;
   const doneTasks = task.storyTasks.filter((child) => child.isDone).length;
   const allDone = totalTasks > 0 && doneTasks === totalTasks;
@@ -80,12 +97,43 @@ export function TaskCardContent({
   const stopCardEvents = (event: React.SyntheticEvent) => event.stopPropagation();
 
   return (
+    <>
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <h3 className="line-clamp-2 text-sm font-semibold leading-5">{task.title}</h3>
-        <Badge className={cn("shrink-0 border-0", priorityClasses[task.priority])}>
-          {task.priority.toLowerCase()}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {projectId ? (
+            <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              <button
+                type="button"
+                aria-label="Edit task"
+                onPointerDown={stopCardEvents}
+                onClick={(event) => {
+                  stopCardEvents(event);
+                  router.push(`/projects/${projectId}?task=${task.id}`);
+                }}
+                className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Delete task"
+                onPointerDown={stopCardEvents}
+                onClick={(event) => {
+                  stopCardEvents(event);
+                  setConfirmOpen(true);
+                }}
+                className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          ) : null}
+          <Badge className={cn("shrink-0 border-0", priorityClasses[task.priority])}>
+            {task.priority.toLowerCase()}
+          </Badge>
+        </div>
       </div>
       {projectName || task.tag ? (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -200,18 +248,29 @@ export function TaskCardContent({
                         if (event.key === "Escape") setAdding(false);
                       }}
                     />
-                    <select
+                    <Select
                       name="priority"
                       defaultValue="MEDIUM"
-                      aria-label="New task priority"
-                      className={selectClassName}
+                      items={PRIORITY_OPTIONS.map((option) => ({
+                        label: option.label,
+                        value: option.value,
+                      }))}
                     >
-                      {PRIORITY_OPTIONS.map((option) => (
-                        <option className={nativeSelectOptionClass} key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger
+                        size="sm"
+                        aria-label="New task priority"
+                        className="h-8 w-auto text-xs"
+                      >
+                        <SelectValue placeholder="Priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRIORITY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <TagPicker idPrefix={`board-story-tag-${task.id}`} />
                   <div className="flex items-center justify-end gap-2">
@@ -279,5 +338,38 @@ export function TaskCardContent({
         </span>
       </div>
     </div>
+    {projectId ? (
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent
+          onClick={stopCardEvents}
+          onPointerDown={stopCardEvents}
+          className="sm:max-w-sm"
+        >
+          <DialogHeader>
+            <DialogTitle>Delete task</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete “{task.title}”? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <form action={deleteTask}>
+              <input type="hidden" name="projectId" value={projectId} />
+              <input type="hidden" name="taskId" value={task.id} />
+              <SubmitButton variant="destructive" pendingLabel="Deleting...">
+                Delete task
+              </SubmitButton>
+            </form>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    ) : null}
+    </>
   );
 }

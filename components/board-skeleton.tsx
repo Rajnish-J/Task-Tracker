@@ -11,11 +11,11 @@ export function BoardSkeleton({
   cardsPerColumn?: number;
 }) {
   return (
-    <div className="grid min-h-full grid-flow-col gap-4 p-4 md:auto-cols-[22rem] md:p-6">
+    <div className="grid min-h-full grid-flow-col gap-4 p-4 auto-cols-[minmax(16rem,1fr)] md:auto-cols-[minmax(20rem,1fr)] md:p-6">
       {Array.from({ length: columns }).map((_, columnIndex) => (
         <section
           key={columnIndex}
-          className="flex h-full min-h-[calc(100vh-13rem)] w-[20rem] flex-col rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur md:w-auto"
+          className="flex h-full min-h-[calc(100vh-13rem)] flex-col rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur"
         >
           <div className="mb-3 flex items-center justify-between gap-3 px-1">
             <div className="space-y-2">

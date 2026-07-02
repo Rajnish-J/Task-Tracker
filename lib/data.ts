@@ -567,9 +567,7 @@ async function collectSubtreeProjectIds(sectionId: string): Promise<string[]> {
 const SECTION_LANES: { key: string; label: string }[] = [
   { key: "todo", label: "To Do" },
   { key: "inProgress", label: "In Progress" },
-  { key: "review", label: "Review" },
   { key: "done", label: "Done" },
-  { key: "other", label: "Other" },
 ];
 
 export type SectionBoardCard = {
@@ -643,8 +641,12 @@ export async function getSectionBoard(sectionId: string) {
   });
 
   for (const row of rows) {
-    const key = statusKeyFromColumnName(row.column.name);
-    const lane = laneByKey.get(key) ?? laneByKey.get("other")!;
+    // The section board only surfaces todo/inProgress/done lanes, so collapse
+    // the two removed keys onto surviving lanes: review folds into In Progress,
+    // and anything unrecognized ("other") defaults to To Do.
+    const rawKey = statusKeyFromColumnName(row.column.name);
+    const key = rawKey === "review" ? "inProgress" : rawKey === "other" ? "todo" : rawKey;
+    const lane = laneByKey.get(key) ?? laneByKey.get("todo")!;
     lane.tasks.push({
       id: row.id,
       title: row.title,

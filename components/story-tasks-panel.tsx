@@ -12,9 +12,15 @@ import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -42,8 +48,6 @@ const priorityClasses: Record<Priority, string> = {
   HIGH: "bg-amber-500/15 text-amber-700 dark:text-amber-200",
   URGENT: "bg-rose-500/15 text-rose-700 dark:text-rose-200",
 };
-
-const selectClassName = nativeSelectClass;
 
 export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPanelProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -258,18 +262,25 @@ function StoryTaskFields({ task }: { task?: StoryTask }) {
           placeholder="Task title"
           aria-label="Task title"
         />
-        <select
+        <Select
           name="priority"
           defaultValue={task?.priority ?? "MEDIUM"}
-          aria-label="Task priority"
-          className={selectClassName}
+          items={PRIORITY_OPTIONS.map((option) => ({
+            label: option.label,
+            value: option.value,
+          }))}
         >
-          {PRIORITY_OPTIONS.map((option) => (
-            <option className={nativeSelectOptionClass} key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label="Task priority" className="w-full">
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <Textarea
         name="description"

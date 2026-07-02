@@ -64,13 +64,13 @@ export function SectionBoard({ sectionId, lanes }: SectionBoardProps) {
 
       <ScrollArea className="h-full flex-1">
         {isFiltering ? (
-          <BoardSkeleton columns={visibleLanes.length || 5} />
+          <BoardSkeleton columns={visibleLanes.length || 3} />
         ) : (
-          <div className="grid min-h-full grid-flow-col gap-4 p-4 md:auto-cols-[22rem] md:p-6">
+          <div className="grid min-h-full grid-flow-col gap-4 p-4 auto-cols-[minmax(16rem,1fr)] md:auto-cols-[minmax(20rem,1fr)] md:p-6">
             {visibleLanes.map((lane) => (
               <section
                 key={lane.key}
-                className="flex h-[calc(100vh-13rem)] w-[20rem] flex-col rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur md:w-auto"
+                className="flex h-[calc(100vh-13rem)] flex-col rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur"
               >
                 <div className="mb-3 flex items-center justify-between gap-3 px-1">
                   <div className="flex items-center gap-2">

@@ -4,15 +4,19 @@ import * as React from "react";
 
 import { getTagsAction } from "@/app/actions";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TAG_COLOR_META, TAG_COLOR_OPTIONS } from "@/lib/constants";
-import { nativeSelectClass, nativeSelectOptionClass } from "@/lib/select-styles";
 
 const NEW = "__new__";
 const NONE = "";
 
 type TagOption = { id: string; name: string; color: string };
-
-const selectClassName = nativeSelectClass;
 
 // Reusable, single-tag picker for any create/edit <form action={...}>. Loads the
 // workspace tag pool on mount, lets the user pick an existing tag or define a new
@@ -59,25 +63,28 @@ export function TagPicker({
       <label className="text-sm font-medium" htmlFor={`${idPrefix}-select`}>
         Tag
       </label>
-      <select
-        id={`${idPrefix}-select`}
+      <Select
         value={selection}
-        onChange={(event) => setSelection(event.target.value)}
-        className={selectClassName}
-        aria-label="Tag"
+        onValueChange={(next) => setSelection(next ?? NONE)}
+        items={[
+          { label: "No tag", value: NONE },
+          ...tags.map((tag) => ({ label: tag.name, value: tag.id })),
+          { label: "+ New tag…", value: NEW },
+        ]}
       >
-        <option className={nativeSelectOptionClass} value={NONE}>
-          No tag
-        </option>
-        {tags.map((tag) => (
-          <option className={nativeSelectOptionClass} key={tag.id} value={tag.id}>
-            {tag.name}
-          </option>
-        ))}
-        <option className={nativeSelectOptionClass} value={NEW}>
-          + New tag…
-        </option>
-      </select>
+        <SelectTrigger id={`${idPrefix}-select`} aria-label="Tag" className="w-full">
+          <SelectValue placeholder="No tag" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>No tag</SelectItem>
+          {tags.map((tag) => (
+            <SelectItem key={tag.id} value={tag.id}>
+              {tag.name}
+            </SelectItem>
+          ))}
+          <SelectItem value={NEW}>+ New tag…</SelectItem>
+        </SelectContent>
+      </Select>
 
       {isNew ? (
         <div className="grid gap-2 sm:grid-cols-[1fr_8rem]">
@@ -88,18 +95,25 @@ export function TagPicker({
             placeholder="New tag name"
             aria-label="New tag name"
           />
-          <select
+          <Select
             value={newColor}
-            onChange={(event) => setNewColor(event.target.value)}
-            className={selectClassName}
-            aria-label="New tag color"
+            onValueChange={(next) => next && setNewColor(next)}
+            items={TAG_COLOR_OPTIONS.map((color) => ({
+              label: TAG_COLOR_META[color]?.label ?? "Color",
+              value: color,
+            }))}
           >
-            {TAG_COLOR_OPTIONS.map((color) => (
-              <option className={nativeSelectOptionClass} key={color} value={color}>
-                {TAG_COLOR_META[color]?.label ?? "Color"}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-label="New tag color" className="w-full">
+              <SelectValue placeholder="Color" />
+            </SelectTrigger>
+            <SelectContent>
+              {TAG_COLOR_OPTIONS.map((color) => (
+                <SelectItem key={color} value={color}>
+                  {TAG_COLOR_META[color]?.label ?? "Color"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       ) : null}
 
