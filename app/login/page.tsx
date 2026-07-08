@@ -1,18 +1,35 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
+import { useForm, type Resolver } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Eye,
+  EyeOff,
+  LayoutDashboard,
+  Loader2,
+  Lock,
+  Mail,
+  MoonStar,
+  SunMedium,
+  User,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { signIn } from "@/lib/auth-client";
+import { Input } from "@/components/ui/input";
+import { useTheme } from "@/components/theme-provider";
+import { signIn, signUp } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
+import { signInSchema, signUpSchema, type SignUpValues } from "./schema";
+
+// Illustration for the left panel. Swap to "/login/images.jpg" (kanban board)
+// if you prefer that artwork.
+const LOGIN_ILLUSTRATION = "/login/news-16.png";
+
+type Mode = "signin" | "signup";
 
 function GoogleIcon() {
   return (
@@ -37,44 +54,348 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  // Icons switch via CSS `dark:` variants (which track the `.dark` class on
+  // <html>), so this stays hydration-safe without a mounted flag/effect.
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Toggle theme"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+    >
+      <SunMedium className="dark:hidden" />
+      <MoonStar className="hidden dark:block" />
+    </Button>
+  );
+}
+
+/** A labelled input with a leading icon and inline error, matching the mockup. */
+function Field({
+  id,
+  label,
+  icon,
+  error,
+  trailing,
+  ...props
+}: React.ComponentProps<typeof Input> & {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  error?: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </label>
+      <div className="relative">
+        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+          {icon}
+        </span>
+        <Input
+          id={id}
+          aria-invalid={!!error}
+          className={cn(
+            "h-12 rounded-2xl border-transparent bg-muted/60 pl-10 shadow-sm transition-colors focus-visible:bg-background",
+            trailing && "pr-10",
+          )}
+          {...props}
+        />
+        {trailing}
+      </div>
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function LoginContent() {
   const searchParams = useSearchParams();
-  const [loading, setLoading] = React.useState(false);
   const callbackURL = searchParams.get("redirect") || "/";
 
-  const handleGoogle = async () => {
-    setLoading(true);
-    const { error } = await signIn.social({ provider: "google", callbackURL });
-    if (error) {
-      setLoading(false);
-    }
-    // On success the browser is redirected to Google, so no further work here.
+  const [mode, setMode] = React.useState<Mode>("signin");
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(true);
+  const [googleLoading, setGoogleLoading] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null);
+
+  const isSignup = mode === "signup";
+
+  const form = useForm<SignUpValues>({
+    // Both schemas share the sign-in fields; the resolver swaps with `mode`.
+    resolver: zodResolver(
+      isSignup ? signUpSchema : signInSchema,
+    ) as unknown as Resolver<SignUpValues>,
+    mode: "onTouched",
+    defaultValues: { name: "", email: "", password: "", confirmPassword: "" },
+  });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = form;
+
+  const switchMode = () => {
+    setMode((m) => (m === "signin" ? "signup" : "signin"));
+    setFormError(null);
+    setShowPassword(false);
+    reset();
   };
 
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const { error } = isSignup
+      ? await signUp.email({
+          name: values.name,
+          email: values.email,
+          password: values.password,
+          callbackURL,
+        })
+      : await signIn.email({
+          email: values.email,
+          password: values.password,
+          rememberMe,
+          callbackURL,
+        });
+
+    if (error) {
+      setFormError(
+        error.message ||
+          (isSignup
+            ? "Could not create your account. Please try again."
+            : "Invalid email or password."),
+      );
+    }
+    // On success better-auth redirects the browser to `callbackURL`.
+  });
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    setFormError(null);
+    const { error } = await signIn.social({ provider: "google", callbackURL });
+    if (error) {
+      setGoogleLoading(false);
+      setFormError(error.message || "Could not sign in with Google.");
+    }
+  };
+
+  const busy = isSubmitting || googleLoading;
+
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
-          <div className="mx-auto mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <LayoutDashboard className="size-5" />
+    <main className="grid min-h-svh lg:grid-cols-2">
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+
+      {/* Illustration panel — floating, curvy, with soft blur */}
+      <div className="hidden p-4 lg:block">
+        <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-[2.5rem] bg-linear-to-br from-primary/20 via-primary/10 to-background p-10 shadow-lg ring-1 ring-border/50">
+          {/* Blurred colour blobs for depth */}
+          <div className="pointer-events-none absolute -top-16 -left-16 size-72 rounded-full bg-primary/25 blur-3xl" />
+          <div className="pointer-events-none absolute top-1/3 -right-10 size-64 rounded-full bg-primary/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/4 size-72 rounded-full bg-primary/10 blur-3xl" />
+
+          <div className="relative flex items-center gap-2">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <LayoutDashboard className="size-5" />
+            </span>
+            <span className="font-heading text-lg font-semibold tracking-tight">
+              Task Tracker
+            </span>
           </div>
-          <CardTitle className="text-xl">Welcome to Task Tracker</CardTitle>
-          <CardDescription>
-            Sign in with Google to access your projects and boards.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+
+          {/* Glassy card holding the artwork */}
+          <div className="relative my-8 flex-1">
+            <div className="absolute inset-0 rounded-[2rem] border border-white/40 bg-white/30 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-white/5" />
+            <div className="absolute inset-3">
+              <Image
+                src={LOGIN_ILLUSTRATION}
+                alt="Illustration of an organised, productive workspace"
+                fill
+                priority
+                sizes="(max-width: 1024px) 0px, 50vw"
+                className="object-contain"
+              />
+            </div>
+          </div>
+
+          <div className="relative max-w-md">
+            <h2 className="font-heading text-2xl font-semibold">
+              Organise everything, effortlessly.
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Plan projects, track tasks, and hit your deadlines — all in one
+              tidy board.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Form panel */}
+      <div className="flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-16">
+        <div className="mx-auto w-full max-w-sm">
+          <div className="mb-6">
+            <h1 className="font-heading text-2xl font-bold tracking-tight">
+              {isSignup ? "Create your account" : "Welcome back"}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isSignup
+                ? "Sign up to start organising your work."
+                : "Sign in to access your projects and boards."}
+            </p>
+          </div>
+
+          <form onSubmit={onSubmit} noValidate className="space-y-4">
+            {isSignup ? (
+              <Field
+                id="name"
+                label="Name"
+                type="text"
+                autoComplete="name"
+                placeholder="Jane Doe"
+                icon={<User className="size-4" />}
+                error={errors.name?.message}
+                {...register("name")}
+              />
+            ) : null}
+
+            <Field
+              id="email"
+              label="Email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              icon={<Mail className="size-4" />}
+              error={errors.email?.message}
+              {...register("email")}
+            />
+
+            <Field
+              id="password"
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              placeholder="••••••••"
+              icon={<Lock className="size-4" />}
+              error={errors.password?.message}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              }
+              {...register("password")}
+            />
+
+            {isSignup ? (
+              <Field
+                id="confirmPassword"
+                label="Confirm password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="••••••••"
+                icon={<Lock className="size-4" />}
+                error={errors.confirmPassword?.message}
+                {...register("confirmPassword")}
+              />
+            ) : null}
+
+            {!isSignup ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="size-4 rounded border-input accent-primary"
+                />
+                Remember me
+              </label>
+            ) : null}
+
+            {formError ? (
+              <div
+                role="alert"
+                className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {formError}
+              </div>
+            ) : null}
+
+            <Button
+              type="submit"
+              className="h-12 w-full rounded-2xl text-sm"
+              disabled={busy}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {isSignup ? "Creating account…" : "Signing in…"}
+                </>
+              ) : isSignup ? (
+                "Create account"
+              ) : (
+                "Log in"
+              )}
+            </Button>
+          </form>
+
+          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            Or continue with
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <Button
-            className="w-full gap-2"
+            type="button"
             variant="outline"
+            className="h-12 w-full gap-2 rounded-2xl text-sm"
             onClick={handleGoogle}
-            disabled={loading}
+            disabled={busy}
           >
-            <GoogleIcon />
-            {loading ? "Redirecting…" : "Continue with Google"}
+            {googleLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <GoogleIcon />
+            )}
+            {googleLoading ? "Redirecting…" : "Continue with Google"}
           </Button>
-        </CardContent>
-      </Card>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            {isSignup ? "Already have an account? " : "Don't have an account? "}
+            <button
+              type="button"
+              onClick={switchMode}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {isSignup ? "Sign in" : "Sign up here"}
+            </button>
+          </p>
+        </div>
+      </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-svh" />}>
+      <LoginContent />
+    </Suspense>
   );
 }
