@@ -1,15 +1,61 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { and, asc, desc, eq, ilike, isNull } from "drizzle-orm";
+import { notFound, redirect } from "next/navigation";
+import { and, asc, desc, eq, ilike, inArray } from "drizzle-orm";
 import { z } from "zod";
 
+import { getCurrentUserId } from "@/lib/auth-session";
 import { COLUMN_COLOR_OPTIONS, DEFAULT_COLUMNS, TAG_COLOR_OPTIONS } from "@/lib/constants";
 import { getTags, statusKeyFromColumnName } from "@/lib/data";
 import { db } from "@/lib/db";
 import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tags, tasks } from "@/lib/db/schema";
 import { slugify } from "@/lib/utils/slugify";
+
+// ---------------------------------------------------------------------------
+// Authorization helpers. Every mutation resolves the signed-in user first, then
+// asserts that the project/section/task it targets belongs to that user before
+// touching any row. Ownership roots at Project/Section (both carry userId);
+// columns/tasks/storyTasks are authorized transitively through their project.
+// A mismatch throws notFound() — an attacker guessing another user's id gets a
+// 404, never a mutation.
+// ---------------------------------------------------------------------------
+
+async function assertProjectOwned(projectId: string, uid: string) {
+  const owned = await db.query.projects.findFirst({
+    where: and(eq(projects.id, projectId), eq(projects.userId, uid)),
+    columns: { id: true },
+  });
+  if (!owned) notFound();
+}
+
+async function assertSectionOwned(sectionId: string, uid: string) {
+  const owned = await db.query.sections.findFirst({
+    where: and(eq(sections.id, sectionId), eq(sections.userId, uid)),
+    columns: { id: true },
+  });
+  if (!owned) notFound();
+}
+
+// Assumes the project was already asserted owned; confirms the column lives in it.
+async function assertColumnInProject(columnId: string, projectId: string) {
+  const owned = await db.query.columns.findFirst({
+    where: and(eq(columns.id, columnId), eq(columns.projectId, projectId)),
+    columns: { id: true },
+  });
+  if (!owned) notFound();
+}
+
+// Assumes the project was already asserted owned; confirms the task lives in it
+// and returns it (with columnId) for callers that need to re-sequence positions.
+async function assertTaskInProject(taskId: string, projectId: string) {
+  const task = await db.query.tasks.findFirst({
+    where: and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)),
+    columns: { id: true, columnId: true },
+  });
+  if (!task) notFound();
+  return task;
+}
 
 // Tag fields shared by every create/edit form. The picker emits either a chosen
 // `tagId` or a new `tagName` (+ optional `tagColor`); both are optional.
@@ -30,13 +76,22 @@ function readTagFields(formData: FormData) {
 // Resolve the single tag for an item: use the chosen id, else find-or-create by
 // name (case-insensitive), else leave it untagged. Tag rows live independently
 // of the item so this runs outside the item's transaction.
-async function resolveTagId(input: {
-  tagId?: string;
-  tagName?: string;
-  tagColor?: string;
-}): Promise<string | null> {
+async function resolveTagId(
+  input: {
+    tagId?: string;
+    tagName?: string;
+    tagColor?: string;
+  },
+  uid: string,
+): Promise<string | null> {
   if (input.tagId) {
-    return input.tagId;
+    // A chosen tag must belong to this user, else ignore it (never adopt
+    // another user's tag onto an item).
+    const owned = await db.query.tags.findFirst({
+      where: and(eq(tags.id, input.tagId), eq(tags.userId, uid)),
+      columns: { id: true },
+    });
+    return owned?.id ?? null;
   }
 
   const name = input.tagName?.trim();
@@ -45,7 +100,7 @@ async function resolveTagId(input: {
   }
 
   const existing = await db.query.tags.findFirst({
-    where: ilike(tags.name, name),
+    where: and(ilike(tags.name, name), eq(tags.userId, uid)),
     columns: { id: true },
   });
   if (existing) {
@@ -59,13 +114,13 @@ async function resolveTagId(input: {
   try {
     const [created] = await db
       .insert(tags)
-      .values({ name, color })
+      .values({ name, color, userId: uid })
       .returning({ id: tags.id });
     return created.id;
   } catch {
-    // Lost a race on the unique name — re-read the winner.
+    // Lost a race on the (userId, name) unique — re-read the winner.
     const fallback = await db.query.tags.findFirst({
-      where: ilike(tags.name, name),
+      where: and(ilike(tags.name, name), eq(tags.userId, uid)),
       columns: { id: true },
     });
     return fallback?.id ?? null;
@@ -176,31 +231,36 @@ function parseOptionalDate(value?: string) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-async function slugExists(slug: string, table: "projects" | "sections") {
+async function slugExists(slug: string, table: "projects" | "sections", uid: string) {
   if (table === "sections") {
     return Boolean(
       await db.query.sections.findFirst({
-        where: eq(sections.slug, slug),
+        where: and(eq(sections.slug, slug), eq(sections.userId, uid)),
         columns: { id: true },
       }),
     );
   }
   return Boolean(
     await db.query.projects.findFirst({
-      where: eq(projects.slug, slug),
+      where: and(eq(projects.slug, slug), eq(projects.userId, uid)),
       columns: { id: true },
     }),
   );
 }
 
-// Projects and sections own separate slug spaces; pass the table so the
-// uniqueness check (and fallback base) targets the right one.
-async function resolveUniqueSlug(name: string, table: "projects" | "sections" = "projects") {
+// Projects and sections own separate slug spaces, now scoped per user; pass the
+// table and owner so the uniqueness check (and fallback base) targets the right
+// one within that user's data.
+async function resolveUniqueSlug(
+  name: string,
+  table: "projects" | "sections",
+  uid: string,
+) {
   const baseSlug = slugify(name) || (table === "sections" ? "section" : "project");
   let slug = baseSlug;
   let suffix = 1;
 
-  while (await slugExists(slug, table)) {
+  while (await slugExists(slug, table, uid)) {
     suffix += 1;
     slug = `${baseSlug}-${suffix}`;
   }
@@ -216,8 +276,13 @@ export async function createProject(formData: FormData) {
     ...readTagFields(formData),
   });
 
-  const slug = await resolveUniqueSlug(values.name);
-  const tagId = await resolveTagId(values);
+  const uid = await getCurrentUserId();
+  if (values.sectionId) {
+    await assertSectionOwned(values.sectionId, uid);
+  }
+
+  const slug = await resolveUniqueSlug(values.name, "projects", uid);
+  const tagId = await resolveTagId(values, uid);
 
   const project = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -228,6 +293,7 @@ export async function createProject(formData: FormData) {
         description: values.description || null,
         tagId,
         sectionId: values.sectionId || null,
+        userId: uid,
       })
       .returning({ id: projects.id });
 
@@ -253,6 +319,9 @@ export async function createColumn(formData: FormData) {
     name: formData.get("name"),
     color: formData.get("color") || undefined,
   });
+
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
 
   const [lastColumn] = await db
     .select({ position: columns.position })
@@ -280,10 +349,14 @@ export async function updateColumn(formData: FormData) {
     color: formData.get("color"),
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertColumnInProject(values.columnId, values.projectId);
+
   await db
     .update(columns)
     .set({ name: values.name, color: values.color })
-    .where(eq(columns.id, values.columnId));
+    .where(and(eq(columns.id, values.columnId), eq(columns.projectId, values.projectId)));
 
   revalidatePath(`/projects/${values.projectId}`);
   redirect(`/projects/${values.projectId}`);
@@ -294,6 +367,10 @@ export async function deleteColumn(formData: FormData) {
     projectId: formData.get("projectId"),
     columnId: formData.get("columnId"),
   });
+
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertColumnInProject(values.columnId, values.projectId);
 
   const projectColumns = await db
     .select({ id: columns.id, position: columns.position })
@@ -368,7 +445,11 @@ export async function createTask(formData: FormData) {
     ...readTagFields(formData),
   });
 
-  const tagId = await resolveTagId(values);
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertColumnInProject(values.columnId, values.projectId);
+
+  const tagId = await resolveTagId(values, uid);
 
   const [lastTask] = await db
     .select({ position: tasks.position })
@@ -408,16 +489,12 @@ export async function updateTask(formData: FormData) {
     ...readTagFields(formData),
   });
 
-  const existingTask = await db.query.tasks.findFirst({
-    where: eq(tasks.id, values.taskId),
-    columns: { columnId: true },
-  });
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertColumnInProject(values.columnId, values.projectId);
+  const existingTask = await assertTaskInProject(values.taskId, values.projectId);
 
-  if (!existingTask) {
-    redirect(`/projects/${values.projectId}`);
-  }
-
-  const tagId = await resolveTagId(values);
+  const tagId = await resolveTagId(values, uid);
   const movedColumn = existingTask.columnId !== values.columnId;
 
   await db.transaction(async (tx) => {
@@ -472,14 +549,9 @@ export async function deleteTask(formData: FormData) {
   const projectId = z.string().min(1).parse(formData.get("projectId"));
   const taskId = z.string().min(1).parse(formData.get("taskId"));
 
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    columns: { columnId: true },
-  });
-
-  if (!task) {
-    redirect(`/projects/${projectId}`);
-  }
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(projectId, uid);
+  const task = await assertTaskInProject(taskId, projectId);
 
   await db.transaction(async (tx) => {
     await tx.delete(tasks).where(eq(tasks.id, taskId));
@@ -504,6 +576,12 @@ export async function deleteTask(formData: FormData) {
 
 export async function moveTask(input: z.infer<typeof moveTaskSchema>) {
   const values = moveTaskSchema.parse(input);
+
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  // The destination column must live in the same owned project, so a move can
+  // never relocate a card into another user's board.
+  await assertColumnInProject(values.toColumnId, values.projectId);
 
   await db.transaction(async (tx) => {
     const task = await tx.query.tasks.findFirst({
@@ -584,6 +662,17 @@ const reorderProjectsSchema = z.object({
 export async function reorderProjects(input: z.infer<typeof reorderProjectsSchema>) {
   const { orderedIds } = reorderProjectsSchema.parse(input);
 
+  const uid = await getCurrentUserId();
+  // Every id must be one of this user's projects, or the reorder is rejected
+  // wholesale — no partial writes that could touch someone else's rows.
+  const owned = await db.query.projects.findMany({
+    where: and(inArray(projects.id, orderedIds), eq(projects.userId, uid)),
+    columns: { id: true },
+  });
+  if (owned.length !== orderedIds.length) {
+    notFound();
+  }
+
   await db.transaction(async (tx) => {
     // Phase 1: park every project at a high, still-unique position so the final
     // pass below can't collide while positions are being shuffled.
@@ -591,12 +680,15 @@ export async function reorderProjects(input: z.infer<typeof reorderProjectsSchem
       await tx
         .update(projects)
         .set({ position: POSITION_OFFSET + index })
-        .where(eq(projects.id, id));
+        .where(and(eq(projects.id, id), eq(projects.userId, uid)));
     }
 
     // Phase 2: assign contiguous final positions matching the requested order.
     for (const [index, id] of orderedIds.entries()) {
-      await tx.update(projects).set({ position: index }).where(eq(projects.id, id));
+      await tx
+        .update(projects)
+        .set({ position: index })
+        .where(and(eq(projects.id, id), eq(projects.userId, uid)));
     }
   });
 
@@ -622,12 +714,18 @@ export async function createSection(formData: FormData) {
     ...readTagFields(formData),
   });
 
-  const slug = await resolveUniqueSlug(values.name, "sections");
-  const tagId = await resolveTagId(values);
+  const uid = await getCurrentUserId();
+  if (values.parentId) {
+    await assertSectionOwned(values.parentId, uid);
+  }
+
+  const slug = await resolveUniqueSlug(values.name, "sections", uid);
+  const tagId = await resolveTagId(values, uid);
 
   const [lastSection] = await db
     .select({ position: sections.position })
     .from(sections)
+    .where(eq(sections.userId, uid))
     .orderBy(desc(sections.position))
     .limit(1);
 
@@ -639,6 +737,7 @@ export async function createSection(formData: FormData) {
       description: values.description || null,
       parentId: values.parentId || null,
       tagId,
+      userId: uid,
       position: (lastSection?.position ?? -1) + 1,
     })
     .returning({ id: sections.id });
@@ -664,7 +763,13 @@ export async function updateSection(formData: FormData) {
     ...readTagFields(formData),
   });
 
+  const uid = await getCurrentUserId();
+  await assertSectionOwned(values.sectionId, uid);
+
   const newParentId = values.parentId || null;
+  if (newParentId) {
+    await assertSectionOwned(newParentId, uid);
+  }
 
   // Cycle guard: a section can't be its own parent, nor be moved under one of
   // its own descendants (the self-FK alone does not prevent cycles). Walk up
@@ -674,6 +779,7 @@ export async function updateSection(formData: FormData) {
       throw new Error("A section cannot be its own parent.");
     }
     const all = await db.query.sections.findMany({
+      where: eq(sections.userId, uid),
       columns: { id: true, parentId: true },
     });
     const parentOf = new Map(all.map((section) => [section.id, section.parentId]));
@@ -687,7 +793,7 @@ export async function updateSection(formData: FormData) {
   }
 
   const existing = await db.query.sections.findFirst({
-    where: eq(sections.id, values.sectionId),
+    where: and(eq(sections.id, values.sectionId), eq(sections.userId, uid)),
     columns: { name: true },
   });
   if (!existing) {
@@ -696,9 +802,9 @@ export async function updateSection(formData: FormData) {
 
   const slug =
     existing.name !== values.name
-      ? await resolveUniqueSlug(values.name, "sections")
+      ? await resolveUniqueSlug(values.name, "sections", uid)
       : undefined;
-  const tagId = await resolveTagId(values);
+  const tagId = await resolveTagId(values, uid);
 
   await db
     .update(sections)
@@ -709,7 +815,7 @@ export async function updateSection(formData: FormData) {
       tagId,
       ...(slug ? { slug } : {}),
     })
-    .where(eq(sections.id, values.sectionId));
+    .where(and(eq(sections.id, values.sectionId), eq(sections.userId, uid)));
 
   revalidatePath("/");
   redirect(`/sections/${values.sectionId}`);
@@ -726,7 +832,10 @@ export async function deleteSection(formData: FormData) {
     sectionId: formData.get("sectionId"),
   });
 
-  await db.delete(sections).where(eq(sections.id, sectionId));
+  const uid = await getCurrentUserId();
+  await assertSectionOwned(sectionId, uid);
+
+  await db.delete(sections).where(and(eq(sections.id, sectionId), eq(sections.userId, uid)));
 
   revalidatePath("/");
   redirect("/");
@@ -744,10 +853,16 @@ export async function updateProjectSection(formData: FormData) {
     sectionId: (formData.get("sectionId") as string) ?? "",
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  if (values.sectionId) {
+    await assertSectionOwned(values.sectionId, uid);
+  }
+
   await db
     .update(projects)
     .set({ sectionId: values.sectionId || null })
-    .where(eq(projects.id, values.projectId));
+    .where(and(eq(projects.id, values.projectId), eq(projects.userId, uid)));
 
   revalidatePath("/");
   redirect(`/projects/${values.projectId}`);
@@ -763,10 +878,16 @@ const moveProjectToSectionSchema = z.object({
 export async function moveProjectToSection(input: z.infer<typeof moveProjectToSectionSchema>) {
   const values = moveProjectToSectionSchema.parse(input);
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  if (values.sectionId) {
+    await assertSectionOwned(values.sectionId, uid);
+  }
+
   await db
     .update(projects)
     .set({ sectionId: values.sectionId || null })
-    .where(eq(projects.id, values.projectId));
+    .where(and(eq(projects.id, values.projectId), eq(projects.userId, uid)));
 
   revalidatePath("/");
 }
@@ -791,8 +912,14 @@ export async function updateProject(formData: FormData) {
     ...readTagFields(formData),
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  if (values.sectionId) {
+    await assertSectionOwned(values.sectionId, uid);
+  }
+
   const existing = await db.query.projects.findFirst({
-    where: eq(projects.id, values.projectId),
+    where: and(eq(projects.id, values.projectId), eq(projects.userId, uid)),
     columns: { name: true },
   });
   if (!existing) {
@@ -800,8 +927,10 @@ export async function updateProject(formData: FormData) {
   }
 
   const slug =
-    existing.name !== values.name ? await resolveUniqueSlug(values.name) : undefined;
-  const tagId = await resolveTagId(values);
+    existing.name !== values.name
+      ? await resolveUniqueSlug(values.name, "projects", uid)
+      : undefined;
+  const tagId = await resolveTagId(values, uid);
 
   await db
     .update(projects)
@@ -812,7 +941,7 @@ export async function updateProject(formData: FormData) {
       tagId,
       ...(slug ? { slug } : {}),
     })
-    .where(eq(projects.id, values.projectId));
+    .where(and(eq(projects.id, values.projectId), eq(projects.userId, uid)));
 
   revalidatePath("/");
   revalidatePath(`/projects/${values.projectId}`);
@@ -829,7 +958,10 @@ export async function deleteProject(formData: FormData) {
     projectId: formData.get("projectId"),
   });
 
-  await db.delete(projects).where(eq(projects.id, projectId));
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(projectId, uid);
+
+  await db.delete(projects).where(and(eq(projects.id, projectId), eq(projects.userId, uid)));
 
   revalidatePath("/");
   redirect("/");
@@ -918,6 +1050,11 @@ export async function createStoryTask(formData: FormData) {
     ...readTagFields(formData),
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertTaskInProject(values.taskId, values.projectId);
+  const tagId = await resolveTagId(values, uid);
+
   const [lastChild] = await db
     .select({ position: storyTasks.position })
     .from(storyTasks)
@@ -931,7 +1068,7 @@ export async function createStoryTask(formData: FormData) {
     priority: values.priority,
     dueDate: parseOptionalDate(values.dueDate),
     taskId: values.taskId,
-    tagId: await resolveTagId(values),
+    tagId,
     position: (lastChild?.position ?? -1) + 1,
   });
 
@@ -955,6 +1092,11 @@ export async function createStoryTaskOnBoard(formData: FormData) {
     ...readTagFields(formData),
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertTaskInProject(values.taskId, values.projectId);
+  const tagId = await resolveTagId(values, uid);
+
   const [lastChild] = await db
     .select({ position: storyTasks.position })
     .from(storyTasks)
@@ -968,7 +1110,7 @@ export async function createStoryTaskOnBoard(formData: FormData) {
     priority: values.priority,
     dueDate: parseOptionalDate(values.dueDate),
     taskId: values.taskId,
-    tagId: await resolveTagId(values),
+    tagId,
     position: (lastChild?.position ?? -1) + 1,
   });
 
@@ -990,6 +1132,11 @@ export async function updateStoryTask(formData: FormData) {
     ...readTagFields(formData),
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertTaskInProject(values.taskId, values.projectId);
+  const tagId = await resolveTagId(values, uid);
+
   await db
     .update(storyTasks)
     .set({
@@ -997,7 +1144,7 @@ export async function updateStoryTask(formData: FormData) {
       description: values.description || null,
       priority: values.priority,
       dueDate: parseOptionalDate(values.dueDate),
-      tagId: await resolveTagId(values),
+      tagId,
     })
     .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
 
@@ -1012,6 +1159,10 @@ export async function toggleStoryTask(formData: FormData) {
     storyTaskId: formData.get("storyTaskId"),
     isDone: formData.get("isDone"),
   });
+
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertTaskInProject(values.taskId, values.projectId);
 
   await db
     .update(storyTasks)
@@ -1034,6 +1185,10 @@ export async function toggleStoryTaskOnBoard(formData: FormData) {
     isDone: formData.get("isDone"),
   });
 
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertTaskInProject(values.taskId, values.projectId);
+
   await db
     .update(storyTasks)
     .set({ isDone: values.isDone === "true" })
@@ -1050,6 +1205,10 @@ export async function deleteStoryTask(formData: FormData) {
     taskId: formData.get("taskId"),
     storyTaskId: formData.get("storyTaskId"),
   });
+
+  const uid = await getCurrentUserId();
+  await assertProjectOwned(values.projectId, uid);
+  await assertTaskInProject(values.taskId, values.projectId);
 
   await db
     .delete(storyTasks)
@@ -1081,12 +1240,13 @@ const createTagSchema = z.object({
 // "new tag" flow. Returns the resolved tag so the client can select it.
 export async function createTag(input: z.infer<typeof createTagSchema>) {
   const values = createTagSchema.parse(input);
-  const tagId = await resolveTagId({ tagName: values.name, tagColor: values.color });
+  const uid = await getCurrentUserId();
+  const tagId = await resolveTagId({ tagName: values.name, tagColor: values.color }, uid);
   if (!tagId) {
     throw new Error("Could not create tag");
   }
   const tag = await db.query.tags.findFirst({
-    where: eq(tags.id, tagId),
+    where: and(eq(tags.id, tagId), eq(tags.userId, uid)),
     columns: { id: true, name: true, color: true },
   });
   return tag!;

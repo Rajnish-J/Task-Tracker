@@ -261,6 +261,7 @@ type SortableTaskCardProps = {
 };
 
 function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
@@ -277,6 +278,10 @@ function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
+      // A stationary click opens the task detail; the PointerSensor's 5px
+      // activation distance means a drag never fires this. Inner controls
+      // stopPropagation, so they keep their own behavior.
+      onClick={() => router.push(`/projects/${projectId}?task=${task.id}`)}
       className="group cursor-grab touch-none rounded-lg border border-border/60 bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
     >
       <TaskCardContent task={task} projectId={projectId} />

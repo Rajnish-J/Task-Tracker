@@ -10,6 +10,7 @@ import {
   FolderKanban,
   FolderTree,
   LayoutDashboard,
+  Settings,
 } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
@@ -17,6 +18,7 @@ import { CreateSectionDialog } from "@/components/create-section-dialog";
 import { ModeToggle } from "@/components/mode-toggle";
 import { NavProjects } from "@/components/nav-projects";
 import { NavSections } from "@/components/nav-sections";
+import { NavUser } from "@/components/nav-user";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -115,6 +117,16 @@ export function AppSidebar({ tree, ungroupedProjects, sectionOptions, ...props }
               <span>Timeline</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/settings" />}
+              tooltip="Settings"
+              isActive={pathname === "/settings"}
+            >
+              <Settings className="size-4" />
+              <span>Settings</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
         <NavSections
           tree={tree}
@@ -145,6 +157,9 @@ export function AppSidebar({ tree, ungroupedProjects, sectionOptions, ...props }
           ) : null}
           <SidebarMenuItem>
             <ModeToggle />
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <NavUser />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

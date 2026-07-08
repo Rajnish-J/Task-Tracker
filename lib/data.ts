@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
+import { getCurrentUserId } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tasks } from "@/lib/db/schema";
 
@@ -10,14 +11,18 @@ export type Tag = { id: string; name: string; color: string };
 
 // All workspace tags, alphabetized for stable pickers and filters.
 export async function getTags(): Promise<Tag[]> {
+  const uid = await getCurrentUserId();
   return db.query.tags.findMany({
+    where: (tags, { eq }) => eq(tags.userId, uid),
     orderBy: (tags) => [asc(tags.name)],
     columns: { id: true, name: true, color: true },
   });
 }
 
 export async function getProjects() {
+  const uid = await getCurrentUserId();
   const rows = await db.query.projects.findMany({
+    where: (projects, { eq }) => eq(projects.userId, uid),
     orderBy: (projects) => [
       asc(projects.position),
       desc(projects.updatedAt),
@@ -41,8 +46,10 @@ export async function getProjects() {
 }
 
 export async function getProjectBoard(projectId: string) {
+  const uid = await getCurrentUserId();
   const project = await db.query.projects.findFirst({
-    where: (projects, { eq }) => eq(projects.id, projectId),
+    where: (projects, { eq, and }) =>
+      and(eq(projects.id, projectId), eq(projects.userId, uid)),
     with: {
       tag: true,
       columns: {
@@ -74,9 +81,10 @@ export async function getProjectBoard(projectId: string) {
 // (checklist items) — each with the context needed to link back to it from the
 // dashboard.
 export async function getTaggedItems(tagId: string) {
+  const uid = await getCurrentUserId();
   const [sectionRows, boards, items] = await Promise.all([
     db.query.sections.findMany({
-      where: eq(sections.tagId, tagId),
+      where: and(eq(sections.tagId, tagId), eq(sections.userId, uid)),
       orderBy: (sections) => [asc(sections.name)],
       columns: { id: true, name: true },
     }),
@@ -107,7 +115,7 @@ export async function getTaggedItems(tagId: string) {
   // Every project involved in this tag, so the list mirrors the filtered KPIs:
   // projects carrying the tag directly, projects inside a tagged section, and
   // projects that merely contain a tagged card or checklist item.
-  const projectIdSet = await getProjectIdsMatchingTag(tagId);
+  const projectIdSet = await getProjectIdsMatchingTag(tagId, uid);
   for (const board of boards) {
     projectIdSet.add(board.projectId);
   }
@@ -118,7 +126,7 @@ export async function getTaggedItems(tagId: string) {
 
   const projectRows = projectIdSet.size
     ? await db.query.projects.findMany({
-        where: inArray(projects.id, [...projectIdSet]),
+        where: and(inArray(projects.id, [...projectIdSet]), eq(projects.userId, uid)),
         orderBy: (projects) => [asc(projects.name)],
         columns: { id: true, name: true },
       })
@@ -154,10 +162,16 @@ export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 // Projects whose every card should be counted for a tag filter: a project that
 // carries the tag itself, or one that belongs to a section (or any ancestor
 // section) carrying the tag. A tagged section covers its whole subtree.
-async function getProjectIdsMatchingTag(tagId: string): Promise<Set<string>> {
+async function getProjectIdsMatchingTag(tagId: string, uid: string): Promise<Set<string>> {
   const [sectionRows, projectRows] = await Promise.all([
-    db.query.sections.findMany({ columns: { id: true, parentId: true, tagId: true } }),
-    db.query.projects.findMany({ columns: { id: true, tagId: true, sectionId: true } }),
+    db.query.sections.findMany({
+      where: (sections, { eq }) => eq(sections.userId, uid),
+      columns: { id: true, parentId: true, tagId: true },
+    }),
+    db.query.projects.findMany({
+      where: (projects, { eq }) => eq(projects.userId, uid),
+      columns: { id: true, tagId: true, sectionId: true },
+    }),
   ]);
 
   const childrenByParent = new Map<string, string[]>();
@@ -191,10 +205,12 @@ async function getProjectIdsMatchingTag(tagId: string): Promise<Set<string>> {
 }
 
 export async function getDashboardData(tagId?: string) {
+  const uid = await getCurrentUserId();
   const now = new Date();
   const soonThreshold = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const projects = await db.query.projects.findMany({
+    where: (projects, { eq }) => eq(projects.userId, uid),
     orderBy: (projects) => [desc(projects.updatedAt), desc(projects.createdAt)],
     with: {
       columns: {
@@ -216,7 +232,7 @@ export async function getDashboardData(tagId?: string) {
   let scopedProjects = projects;
   let matchedProjectIds: Set<string> | null = null;
   if (tagId) {
-    const matched = await getProjectIdsMatchingTag(tagId);
+    const matched = await getProjectIdsMatchingTag(tagId, uid);
     matchedProjectIds = matched;
 
     scopedProjects = projects.map((project) => {
@@ -372,7 +388,9 @@ export async function getDashboardData(tagId?: string) {
 
 // Full project/column/task/storyTask tree for the cross-project timeline view.
 export async function getTimelineData() {
+  const uid = await getCurrentUserId();
   return db.query.projects.findMany({
+    where: (projects, { eq }) => eq(projects.userId, uid),
     orderBy: (projects) => [asc(projects.name)],
     with: {
       columns: {
@@ -442,8 +460,10 @@ export async function getSectionsTree(): Promise<{
   tree: SectionNode[];
   ungroupedProjects: SectionProject[];
 }> {
+  const uid = await getCurrentUserId();
   const [sectionRows, projectRows] = await Promise.all([
     db.query.sections.findMany({
+      where: (sections, { eq }) => eq(sections.userId, uid),
       orderBy: (sections) => [asc(sections.position), asc(sections.name)],
       columns: {
         id: true,
@@ -456,6 +476,7 @@ export async function getSectionsTree(): Promise<{
       with: { tag: true },
     }),
     db.query.projects.findMany({
+      where: (projects, { eq }) => eq(projects.userId, uid),
       orderBy: (projects) => [
         asc(projects.position),
         desc(projects.updatedAt),
@@ -532,8 +553,9 @@ export function flattenSectionTree(
 
 // Collect the ids of every project belonging to a section or any of its
 // descendant sections. Uses a visited set so a malformed cycle can't loop.
-async function collectSubtreeProjectIds(sectionId: string): Promise<string[]> {
+async function collectSubtreeProjectIds(sectionId: string, uid: string): Promise<string[]> {
   const sectionRows = await db.query.sections.findMany({
+    where: (sections, { eq }) => eq(sections.userId, uid),
     columns: { id: true, parentId: true },
   });
   const childrenByParent = new Map<string, string[]>();
@@ -556,6 +578,7 @@ async function collectSubtreeProjectIds(sectionId: string): Promise<string[]> {
   }
 
   const projectRows = await db.query.projects.findMany({
+    where: (projects, { eq }) => eq(projects.userId, uid),
     columns: { id: true, sectionId: true },
   });
   return projectRows
@@ -604,8 +627,10 @@ export type SectionBoardLane = {
 // per-project and user-editable, so we merge by status key, mirroring the
 // dashboard's approach).
 export async function getSectionBoard(sectionId: string) {
+  const uid = await getCurrentUserId();
   const section = await db.query.sections.findFirst({
-    where: (sections, { eq }) => eq(sections.id, sectionId),
+    where: (sections, { eq, and }) =>
+      and(eq(sections.id, sectionId), eq(sections.userId, uid)),
     columns: { id: true, name: true, slug: true, description: true, updatedAt: true },
   });
 
@@ -613,7 +638,7 @@ export async function getSectionBoard(sectionId: string) {
     notFound();
   }
 
-  const projectIds = await collectSubtreeProjectIds(sectionId);
+  const projectIds = await collectSubtreeProjectIds(sectionId, uid);
 
   const lanes: SectionBoardLane[] = SECTION_LANES.map((lane) => ({
     ...lane,
@@ -689,10 +714,12 @@ export type SectionBoard = Awaited<ReturnType<typeof getSectionBoard>>;
 // own project's columns — used when opening a card from an aggregated section
 // board so edits route through the existing per-project task actions.
 export async function getTaskForSheet(taskId: string) {
+  const uid = await getCurrentUserId();
   const task = await db.query.tasks.findFirst({
     where: (tasks, { eq }) => eq(tasks.id, taskId),
     with: {
       tag: true,
+      project: { columns: { userId: true } },
       storyTasks: {
         orderBy: (storyTasks) => [asc(storyTasks.position), asc(storyTasks.createdAt)],
         with: { tag: true },
@@ -700,7 +727,8 @@ export async function getTaskForSheet(taskId: string) {
     },
   });
 
-  if (!task) {
+  // Not found, or the card belongs to another user's project.
+  if (!task || task.project?.userId !== uid) {
     return null;
   }
 

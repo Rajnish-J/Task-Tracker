@@ -88,6 +88,30 @@ const STATUS_META: Record<StatusKey, { label: string; bar: string; accent: strin
   },
 };
 
+// Bars are colored by TYPE (user story vs subtask) rather than status. Completed
+// cards (in a "Done" column) get a muted, faded treatment. Written as full literal
+// class strings so Tailwind's scanner picks them up (same as STATUS_META above).
+type BarMeta = { bar: string; accent: string; dot: string };
+
+const CARD_META: BarMeta = {
+  bar: "bg-linear-to-r from-indigo-500/30 to-indigo-500/10 text-indigo-700 ring-indigo-500/30 dark:text-indigo-100 dark:from-indigo-400/35 dark:to-indigo-400/10",
+  accent: "bg-indigo-500",
+  dot: "bg-indigo-500",
+};
+
+const SUBTASK_META: BarMeta = {
+  bar: "bg-linear-to-r from-teal-500/25 to-teal-500/5 text-teal-700 ring-teal-500/25 dark:text-teal-100 dark:from-teal-400/30 dark:to-teal-400/5",
+  accent: "bg-teal-500",
+  dot: "bg-teal-500",
+};
+
+// Completed cards: muted/desaturated color plus a soft blur so they visibly recede.
+const DONE_META: BarMeta = {
+  bar: "bg-linear-to-r from-slate-400/25 to-slate-400/10 text-slate-600 ring-slate-400/25 opacity-60 saturate-50 blur-[0.4px] dark:text-slate-300 dark:from-slate-500/25 dark:to-slate-500/10",
+  accent: "bg-slate-400",
+  dot: "bg-slate-400",
+};
+
 const PRIORITY_DOT: Record<string, string> = {
   LOW: "bg-slate-400",
   MEDIUM: "bg-sky-500",
@@ -434,13 +458,19 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/70">Status</span>
-          {availableStatuses.map((status) => (
-            <span key={status} className="inline-flex items-center gap-1.5">
-              <span className={cn("size-2.5 rounded-full", STATUS_META[status].accent)} />
-              {STATUS_META[status].label}
-            </span>
-          ))}
+          <span className="font-medium text-foreground/70">Type</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2.5 rounded-full", CARD_META.accent)} />
+            User story
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2.5 rounded-full", SUBTASK_META.accent)} />
+            Subtask
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2.5 rounded-full", DONE_META.accent)} />
+            Completed
+          </span>
           <span className="mx-1 h-3 w-px bg-border" />
           <span className="font-medium text-foreground/70">Priority</span>
           {PRIORITY_OPTIONS.map((option) => (
@@ -606,7 +636,13 @@ function TimelineRow({
   // Render the bar through to the END of the due day so single-day items are visible.
   const right = dateToX(item.hasDue ? addDays(item.end, 1) : addDays(item.start, 1), columns, total);
   const width = Math.max(right - left, MIN_BAR);
-  const meta = STATUS_META[item.status];
+  const statusMeta = STATUS_META[item.status];
+  // Color by type: subtasks vs cards, with completed cards muted/blurred.
+  const meta = item.isSubtask
+    ? SUBTASK_META
+    : item.status === "done"
+      ? DONE_META
+      : CARD_META;
 
   return (
     <div className="flex border-b border-border/40 hover:bg-muted/20">
@@ -656,7 +692,7 @@ function TimelineRow({
         <button
           type="button"
           onClick={() => onOpen(item.id)}
-          title={`${item.title} · ${meta.label}${item.hasDue ? ` · due ${format(item.end, "MMM d, yyyy")}` : ""}`}
+          title={`${item.title} · ${statusMeta.label}${item.hasDue ? ` · due ${format(item.end, "MMM d, yyyy")}` : ""}`}
           className={cn(
             "group absolute top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 overflow-hidden rounded-md pr-2.5 text-xs font-medium shadow-sm ring-1 ring-inset transition-all hover:z-20 hover:shadow-md hover:brightness-105 focus-visible:outline-2 focus-visible:outline-ring",
             item.isSubtask ? "h-5" : "h-6",

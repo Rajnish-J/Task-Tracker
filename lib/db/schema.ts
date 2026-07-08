@@ -16,20 +16,83 @@ export const PRIORITY_VALUES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
 export const priorityEnum = pgEnum("Priority", PRIORITY_VALUES);
 
+// ---------------------------------------------------------------------------
+// Authentication tables (better-auth). Names/columns match better-auth's
+// default Drizzle schema so the drizzleAdapter can map to them directly.
+// ---------------------------------------------------------------------------
+
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("emailVerified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { mode: "date" }),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { mode: "date" }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 // Shared, workspace-wide tags. Each project/task/storyTask references at most one
 // tag (a category). Names are unique so the same tag can be reused everywhere.
-export const tags = pgTable("Tag", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  name: text("name").notNull().unique(),
-  color: text("color").notNull(),
-  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
-  updatedAt: timestamp("updatedAt", { mode: "date" })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const tags = pgTable(
+  "Tag",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    name: text("name").notNull(),
+    color: text("color").notNull(),
+    userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique("Tag_userId_name_key").on(table.userId, table.name),
+    index("Tag_userId_idx").on(table.userId),
+  ],
+);
 
 // A Section groups related projects and can nest under another section (a
 // nullable self-referential parent). Deleting a section promotes its children
@@ -41,11 +104,12 @@ export const sections = pgTable(
       .primaryKey()
       .$defaultFn(() => createId()),
     name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
+    slug: text("slug").notNull(),
     description: text("description"),
     position: integer("position").notNull().default(0),
     parentId: text("parentId"),
     tagId: text("tagId").references(() => tags.id, { onDelete: "set null" }),
+    userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .notNull()
@@ -53,8 +117,10 @@ export const sections = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    unique("Section_userId_slug_key").on(table.userId, table.slug),
     index("Section_parentId_idx").on(table.parentId),
     index("Section_tagId_idx").on(table.tagId),
+    index("Section_userId_idx").on(table.userId),
     foreignKey({
       columns: [table.parentId],
       foreignColumns: [table.id],
@@ -70,13 +136,14 @@ export const projects = pgTable(
       .primaryKey()
       .$defaultFn(() => createId()),
     name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
+    slug: text("slug").notNull(),
     description: text("description"),
     position: integer("position").notNull().default(0),
     tagId: text("tagId").references(() => tags.id, { onDelete: "set null" }),
     sectionId: text("sectionId").references(() => sections.id, {
       onDelete: "set null",
     }),
+    userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .notNull()
@@ -84,8 +151,10 @@ export const projects = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    unique("Project_userId_slug_key").on(table.userId, table.slug),
     index("Project_tagId_idx").on(table.tagId),
     index("Project_sectionId_idx").on(table.sectionId),
+    index("Project_userId_idx").on(table.userId),
   ],
 );
 

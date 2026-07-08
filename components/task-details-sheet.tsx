@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import { Check, Pencil } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { deleteTask, updateTask } from "@/app/actions";
@@ -91,8 +92,12 @@ function TaskDetailsForm({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [mode, setMode] = React.useState<"view" | "edit">("view");
   const [selectedColumn, setSelectedColumn] = React.useState<string>(task.columnId);
   const [selectedPriority, setSelectedPriority] = React.useState<string>(task.priority);
+
+  const statusName =
+    columns.find((column) => column.id === task.columnId)?.name ?? "—";
 
   return (
     <>
@@ -111,6 +116,15 @@ function TaskDetailsForm({
         </DialogDescription>
       </DialogHeader>
 
+      {mode === "view" ? (
+        <TaskDetailsView
+          task={task}
+          statusName={statusName}
+          onEdit={() => setMode("edit")}
+          onClose={() => router.replace(pathname)}
+        />
+      ) : (
+      <>
       <form action={updateTask} className="mt-6 space-y-5">
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="taskId" value={task.id} />
@@ -204,8 +218,8 @@ function TaskDetailsForm({
           <Textarea id="task-detail-notes" name="notes" defaultValue={task.notes ?? ""} rows={8} />
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
-          <Button type="button" variant="outline" onClick={() => router.replace(pathname)}>
-            Close
+          <Button type="button" variant="outline" onClick={() => setMode("view")}>
+            Cancel
           </Button>
           <SubmitButton variant="secondary" pendingLabel="Saving task...">
             Save changes
@@ -224,6 +238,98 @@ function TaskDetailsForm({
           Delete task
         </SubmitButton>
       </form>
+      </>
+      )}
     </>
+  );
+}
+
+function TaskDetailsView({
+  task,
+  statusName,
+  onEdit,
+  onClose,
+}: {
+  task: NonNullable<TaskDetailsSheetProps["task"]>;
+  statusName: string;
+  onEdit: () => void;
+  onClose: () => void;
+}) {
+  const priorityLabel = PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label;
+
+  return (
+    <div className="mt-6 space-y-6">
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <Field label="Status">{statusName}</Field>
+        <Field label="Priority">{priorityLabel ?? "—"}</Field>
+        <Field label="Due date">
+          {task.dueDate ? format(task.dueDate, "MMM d, yyyy") : "—"}
+        </Field>
+        <Field label="Tag">{task.tag ? <TagBadge tag={task.tag} /> : "—"}</Field>
+        <div className="sm:col-span-2">
+          <Field label="Collaborators">{task.shortDescription || "—"}</Field>
+        </div>
+      </dl>
+
+      <ReadOnlyText label="Description" value={task.description} />
+      <ReadOnlyText label="Notes" value={task.notes} />
+
+      {task.storyTasks.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Subtasks</p>
+          <ul className="space-y-1.5">
+            {task.storyTasks.map((story) => (
+              <li key={story.id} className="flex items-center gap-2 text-sm">
+                <span
+                  className={
+                    "flex size-4 shrink-0 items-center justify-center rounded-md border " +
+                    (story.isDone
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-transparent")
+                  }
+                >
+                  {story.isDone ? <Check className="size-3" strokeWidth={3} /> : null}
+                </span>
+                <span className={story.isDone ? "text-muted-foreground line-through" : ""}>
+                  {story.title}
+                </span>
+                {story.tag ? <TagBadge tag={story.tag} /> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Close
+        </Button>
+        <Button type="button" variant="secondary" onClick={onEdit}>
+          <Pencil className="size-4" /> Edit
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
+  );
+}
+
+function ReadOnlyText({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">{label}</p>
+      <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+        {value?.trim() ? value : "—"}
+      </p>
+    </div>
   );
 }
