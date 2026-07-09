@@ -1,15 +1,17 @@
 import { createId } from "@paralleldrive/cuid2";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const PRIORITY_VALUES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -71,6 +73,128 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------------------
+// Teams. A Team is a shared workspace: projects/sections/tags may belong to a
+// team instead of a user. Rows are either personal (userId set, teamId NULL)
+// or team-owned (teamId set, userId NULL) — the NULL userId on team rows keeps
+// a member's account deletion from cascading into shared team data.
+// ---------------------------------------------------------------------------
+
+export const TEAM_ROLES = ["owner", "member"] as const;
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
+export const INVITATION_STATUSES = ["pending", "accepted", "declined", "canceled"] as const;
+export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
+
+export const NOTIFICATION_TYPES = [
+  "team_invite",
+  "invite_accepted",
+  "invite_declined",
+  "member_removed",
+  "team_deleted",
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+// Payloads denormalize team/actor names so notifications stay readable after
+// the team (or the actor's membership) is gone.
+export type NotificationPayload = {
+  teamId?: string;
+  teamName?: string;
+  invitationId?: string;
+  actorId?: string;
+  actorName?: string;
+  actorEmail?: string;
+};
+
+export const teams = pgTable(
+  "Team",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    name: text("name").notNull(),
+    description: text("description"),
+    color: text("color"),
+    creatorId: text("creatorId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index("Team_creatorId_idx").on(table.creatorId)],
+);
+
+export const teamMembers = pgTable(
+  "TeamMember",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    teamId: text("teamId")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("member"), // TeamRole
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("TeamMember_teamId_userId_key").on(table.teamId, table.userId),
+    index("TeamMember_teamId_idx").on(table.teamId),
+    index("TeamMember_userId_idx").on(table.userId),
+  ],
+);
+
+export const teamInvitations = pgTable(
+  "TeamInvitation",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    teamId: text("teamId")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    inviterId: text("inviterId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    inviteeId: text("inviteeId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"), // InvitationStatus
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+    respondedAt: timestamp("respondedAt", { mode: "date" }),
+  },
+  (table) => [
+    // Only one live invite per (team, invitee); resolved invites don't block re-inviting.
+    uniqueIndex("TeamInvitation_teamId_inviteeId_pending_key")
+      .on(table.teamId, table.inviteeId)
+      .where(sql`${table.status} = 'pending'`),
+    index("TeamInvitation_teamId_idx").on(table.teamId),
+    index("TeamInvitation_inviteeId_idx").on(table.inviteeId),
+  ],
+);
+
+export const notifications = pgTable(
+  "Notification",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // NotificationType
+    payload: jsonb("payload").notNull().$type<NotificationPayload>(),
+    readAt: timestamp("readAt", { mode: "date" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [index("Notification_userId_createdAt_idx").on(table.userId, table.createdAt)],
+);
+
 // Shared, workspace-wide tags. Each project/task/storyTask references at most one
 // tag (a category). Names are unique so the same tag can be reused everywhere.
 export const tags = pgTable(
@@ -82,6 +206,7 @@ export const tags = pgTable(
     name: text("name").notNull(),
     color: text("color").notNull(),
     userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+    teamId: text("teamId").references(() => teams.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .notNull()
@@ -90,7 +215,9 @@ export const tags = pgTable(
   },
   (table) => [
     unique("Tag_userId_name_key").on(table.userId, table.name),
+    unique("Tag_teamId_name_key").on(table.teamId, table.name),
     index("Tag_userId_idx").on(table.userId),
+    index("Tag_teamId_idx").on(table.teamId),
   ],
 );
 
@@ -110,6 +237,7 @@ export const sections = pgTable(
     parentId: text("parentId"),
     tagId: text("tagId").references(() => tags.id, { onDelete: "set null" }),
     userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+    teamId: text("teamId").references(() => teams.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .notNull()
@@ -118,9 +246,11 @@ export const sections = pgTable(
   },
   (table) => [
     unique("Section_userId_slug_key").on(table.userId, table.slug),
+    unique("Section_teamId_slug_key").on(table.teamId, table.slug),
     index("Section_parentId_idx").on(table.parentId),
     index("Section_tagId_idx").on(table.tagId),
     index("Section_userId_idx").on(table.userId),
+    index("Section_teamId_idx").on(table.teamId),
     foreignKey({
       columns: [table.parentId],
       foreignColumns: [table.id],
@@ -144,6 +274,7 @@ export const projects = pgTable(
       onDelete: "set null",
     }),
     userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+    teamId: text("teamId").references(() => teams.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .notNull()
@@ -152,9 +283,11 @@ export const projects = pgTable(
   },
   (table) => [
     unique("Project_userId_slug_key").on(table.userId, table.slug),
+    unique("Project_teamId_slug_key").on(table.teamId, table.slug),
     index("Project_tagId_idx").on(table.tagId),
     index("Project_sectionId_idx").on(table.sectionId),
     index("Project_userId_idx").on(table.userId),
+    index("Project_teamId_idx").on(table.teamId),
   ],
 );
 
@@ -245,11 +378,75 @@ export const storyTasks = pgTable(
   ],
 );
 
-export const tagsRelations = relations(tags, ({ many }) => ({
+// ---------------------------------------------------------------------------
+// AI chat assistant. A Conversation groups ChatMessages; each message row
+// stores the verbatim Anthropic content-block array (jsonb) so history replays
+// to the API without reconstruction, plus extracted plain text for rendering.
+// ---------------------------------------------------------------------------
+
+export const conversations = pgTable(
+  "Conversation",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    title: text("title").notNull().default("New chat"),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index("Conversation_userId_idx").on(table.userId)],
+);
+
+export const chatMessages = pgTable(
+  "ChatMessage",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    conversationId: text("conversationId")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    // Deterministic ordering within a conversation (0, 1, 2, …).
+    idx: integer("idx").notNull(),
+    role: text("role").notNull(), // "user" | "assistant"
+    // Verbatim Anthropic content-block array (text / tool_use / tool_result).
+    content: jsonb("content").notNull(),
+    // Concatenated text blocks — render fallback and conversation previews.
+    text: text("text"),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("ChatMessage_conversationId_idx_key").on(table.conversationId, table.idx),
+    index("ChatMessage_conversationId_idx").on(table.conversationId),
+  ],
+);
+
+export const conversationsRelations = relations(conversations, ({ many }) => ({
+  messages: many(chatMessages),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [chatMessages.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const tagsRelations = relations(tags, ({ one, many }) => ({
   projects: many(projects),
   tasks: many(tasks),
   storyTasks: many(storyTasks),
   sections: many(sections),
+  team: one(teams, {
+    fields: [tags.teamId],
+    references: [teams.id],
+  }),
 }));
 
 export const sectionsRelations = relations(sections, ({ one, many }) => ({
@@ -264,6 +461,10 @@ export const sectionsRelations = relations(sections, ({ one, many }) => ({
     fields: [sections.tagId],
     references: [tags.id],
   }),
+  team: one(teams, {
+    fields: [sections.teamId],
+    references: [teams.id],
+  }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -276,6 +477,10 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   section: one(sections, {
     fields: [projects.sectionId],
     references: [sections.id],
+  }),
+  team: one(teams, {
+    fields: [projects.teamId],
+    references: [teams.id],
   }),
 }));
 
@@ -300,6 +505,51 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   tag: one(tags, {
     fields: [tasks.tagId],
     references: [tags.id],
+  }),
+}));
+
+export const teamsRelations = relations(teams, ({ one, many }) => ({
+  creator: one(user, {
+    fields: [teams.creatorId],
+    references: [user.id],
+  }),
+  members: many(teamMembers),
+  invitations: many(teamInvitations),
+  projects: many(projects),
+  sections: many(sections),
+  tags: many(tags),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  user: one(user, {
+    fields: [teamMembers.userId],
+    references: [user.id],
+  }),
+}));
+
+export const teamInvitationsRelations = relations(teamInvitations, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamInvitations.teamId],
+    references: [teams.id],
+  }),
+  inviter: one(user, {
+    fields: [teamInvitations.inviterId],
+    references: [user.id],
+  }),
+  invitee: one(user, {
+    fields: [teamInvitations.inviteeId],
+    references: [user.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(user, {
+    fields: [notifications.userId],
+    references: [user.id],
   }),
 }));
 

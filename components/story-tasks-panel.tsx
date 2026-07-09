@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Check, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { createStoryTask, deleteStoryTask, toggleStoryTask, updateStoryTask } from "@/app/actions";
+import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
 import { TagPicker } from "@/components/tag-picker";
@@ -104,6 +105,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
               className="flex items-start gap-2 rounded-lg border border-border/60 bg-background/60 p-3"
             >
               <form action={toggleStoryTask} className="pt-0.5">
+                <SpaceField />
                 <input type="hidden" name="projectId" value={projectId} />
                 <input type="hidden" name="taskId" value={storyId} />
                 <input type="hidden" name="storyTaskId" value={task.id} />
@@ -157,6 +159,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
                   <Pencil className="size-3.5" />
                 </Button>
                 <form action={deleteStoryTask}>
+                  <SpaceField />
                   <input type="hidden" name="projectId" value={projectId} />
                   <input type="hidden" name="taskId" value={storyId} />
                   <input type="hidden" name="storyTaskId" value={task.id} />
@@ -205,6 +208,7 @@ function StoryTaskCreateForm({
 }) {
   return (
     <form action={createStoryTask} className="space-y-3">
+      <SpaceField />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="taskId" value={storyId} />
       <StoryTaskFields />
@@ -233,6 +237,7 @@ function StoryTaskEditForm({
 }) {
   return (
     <form action={updateStoryTask} className="space-y-3">
+      <SpaceField />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="taskId" value={storyId} />
       <input type="hidden" name="storyTaskId" value={task.id} />

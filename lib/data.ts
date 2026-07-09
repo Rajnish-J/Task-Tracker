@@ -1,28 +1,52 @@
 import { notFound } from "next/navigation";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 
-import { getCurrentUserId } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tasks } from "@/lib/db/schema";
+import type { MutationSpace } from "@/lib/db/mutations";
+import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tags, tasks } from "@/lib/db/schema";
+import { getSpaceContext } from "@/lib/space";
 
 type Priority = (typeof PRIORITY_VALUES)[number];
+
+// Space filters for the ownership-rooted tables. Personal rows carry the
+// user's id and no teamId; team rows carry the teamId and no userId. Local
+// copies of the helpers in lib/db/mutations.ts — duplicated (they're three
+// lines each) so this module doesn't add a value import back into mutations,
+// which already imports statusKeyFromColumnName from here.
+function projectScope(space: MutationSpace) {
+  return space.teamId
+    ? eq(projects.teamId, space.teamId)
+    : and(eq(projects.userId, space.uid), isNull(projects.teamId));
+}
+
+function sectionScope(space: MutationSpace) {
+  return space.teamId
+    ? eq(sections.teamId, space.teamId)
+    : and(eq(sections.userId, space.uid), isNull(sections.teamId));
+}
+
+function tagScope(space: MutationSpace) {
+  return space.teamId
+    ? eq(tags.teamId, space.teamId)
+    : and(eq(tags.userId, space.uid), isNull(tags.teamId));
+}
 
 export type Tag = { id: string; name: string; color: string };
 
 // All workspace tags, alphabetized for stable pickers and filters.
-export async function getTags(): Promise<Tag[]> {
-  const uid = await getCurrentUserId();
+export async function getTags(teamId?: string): Promise<Tag[]> {
+  const space = await getSpaceContext(teamId);
   return db.query.tags.findMany({
-    where: (tags, { eq }) => eq(tags.userId, uid),
+    where: tagScope(space),
     orderBy: (tags) => [asc(tags.name)],
     columns: { id: true, name: true, color: true },
   });
 }
 
-export async function getProjects() {
-  const uid = await getCurrentUserId();
+export async function getProjects(teamId?: string) {
+  const space = await getSpaceContext(teamId);
   const rows = await db.query.projects.findMany({
-    where: (projects, { eq }) => eq(projects.userId, uid),
+    where: projectScope(space),
     orderBy: (projects) => [
       asc(projects.position),
       desc(projects.updatedAt),
@@ -45,11 +69,10 @@ export async function getProjects() {
   }));
 }
 
-export async function getProjectBoard(projectId: string) {
-  const uid = await getCurrentUserId();
+export async function getProjectBoard(projectId: string, teamId?: string) {
+  const space = await getSpaceContext(teamId);
   const project = await db.query.projects.findFirst({
-    where: (projects, { eq, and }) =>
-      and(eq(projects.id, projectId), eq(projects.userId, uid)),
+    where: and(eq(projects.id, projectId), projectScope(space)),
     with: {
       tag: true,
       columns: {
@@ -80,11 +103,11 @@ export async function getProjectBoard(projectId: string) {
 // Everything carrying a given tag — sections, projects, boards (cards) and tasks
 // (checklist items) — each with the context needed to link back to it from the
 // dashboard.
-export async function getTaggedItems(tagId: string) {
-  const uid = await getCurrentUserId();
+export async function getTaggedItems(tagId: string, teamId?: string) {
+  const space = await getSpaceContext(teamId);
   const [sectionRows, boards, items] = await Promise.all([
     db.query.sections.findMany({
-      where: and(eq(sections.tagId, tagId), eq(sections.userId, uid)),
+      where: and(eq(sections.tagId, tagId), sectionScope(space)),
       orderBy: (sections) => [asc(sections.name)],
       columns: { id: true, name: true },
     }),
@@ -115,7 +138,7 @@ export async function getTaggedItems(tagId: string) {
   // Every project involved in this tag, so the list mirrors the filtered KPIs:
   // projects carrying the tag directly, projects inside a tagged section, and
   // projects that merely contain a tagged card or checklist item.
-  const projectIdSet = await getProjectIdsMatchingTag(tagId, uid);
+  const projectIdSet = await getProjectIdsMatchingTag(tagId, space);
   for (const board of boards) {
     projectIdSet.add(board.projectId);
   }
@@ -126,7 +149,7 @@ export async function getTaggedItems(tagId: string) {
 
   const projectRows = projectIdSet.size
     ? await db.query.projects.findMany({
-        where: and(inArray(projects.id, [...projectIdSet]), eq(projects.userId, uid)),
+        where: and(inArray(projects.id, [...projectIdSet]), projectScope(space)),
         orderBy: (projects) => [asc(projects.name)],
         columns: { id: true, name: true },
       })
@@ -162,14 +185,14 @@ export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 // Projects whose every card should be counted for a tag filter: a project that
 // carries the tag itself, or one that belongs to a section (or any ancestor
 // section) carrying the tag. A tagged section covers its whole subtree.
-async function getProjectIdsMatchingTag(tagId: string, uid: string): Promise<Set<string>> {
+async function getProjectIdsMatchingTag(tagId: string, space: MutationSpace): Promise<Set<string>> {
   const [sectionRows, projectRows] = await Promise.all([
     db.query.sections.findMany({
-      where: (sections, { eq }) => eq(sections.userId, uid),
+      where: sectionScope(space),
       columns: { id: true, parentId: true, tagId: true },
     }),
     db.query.projects.findMany({
-      where: (projects, { eq }) => eq(projects.userId, uid),
+      where: projectScope(space),
       columns: { id: true, tagId: true, sectionId: true },
     }),
   ]);
@@ -204,13 +227,13 @@ async function getProjectIdsMatchingTag(tagId: string, uid: string): Promise<Set
   return matchedProjectIds;
 }
 
-export async function getDashboardData(tagId?: string) {
-  const uid = await getCurrentUserId();
+export async function getDashboardData(tagId?: string, teamId?: string) {
+  const space = await getSpaceContext(teamId);
   const now = new Date();
   const soonThreshold = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const projects = await db.query.projects.findMany({
-    where: (projects, { eq }) => eq(projects.userId, uid),
+    where: projectScope(space),
     orderBy: (projects) => [desc(projects.updatedAt), desc(projects.createdAt)],
     with: {
       columns: {
@@ -232,7 +255,7 @@ export async function getDashboardData(tagId?: string) {
   let scopedProjects = projects;
   let matchedProjectIds: Set<string> | null = null;
   if (tagId) {
-    const matched = await getProjectIdsMatchingTag(tagId, uid);
+    const matched = await getProjectIdsMatchingTag(tagId, space);
     matchedProjectIds = matched;
 
     scopedProjects = projects.map((project) => {
@@ -387,10 +410,10 @@ export async function getDashboardData(tagId?: string) {
 }
 
 // Full project/column/task/storyTask tree for the cross-project timeline view.
-export async function getTimelineData() {
-  const uid = await getCurrentUserId();
+export async function getTimelineData(teamId?: string) {
+  const space = await getSpaceContext(teamId);
   return db.query.projects.findMany({
-    where: (projects, { eq }) => eq(projects.userId, uid),
+    where: projectScope(space),
     orderBy: (projects) => [asc(projects.name)],
     with: {
       columns: {
@@ -456,14 +479,14 @@ function rollupSectionTaskCounts(node: SectionNode): number {
 // Build the section tree plus the list of projects with no section. Recursion is
 // done in JS over a flat fetch — simpler than a recursive CTE and plenty fast at
 // this workspace's scale.
-export async function getSectionsTree(): Promise<{
+export async function getSectionsTree(teamId?: string): Promise<{
   tree: SectionNode[];
   ungroupedProjects: SectionProject[];
 }> {
-  const uid = await getCurrentUserId();
+  const space = await getSpaceContext(teamId);
   const [sectionRows, projectRows] = await Promise.all([
     db.query.sections.findMany({
-      where: (sections, { eq }) => eq(sections.userId, uid),
+      where: sectionScope(space),
       orderBy: (sections) => [asc(sections.position), asc(sections.name)],
       columns: {
         id: true,
@@ -476,7 +499,7 @@ export async function getSectionsTree(): Promise<{
       with: { tag: true },
     }),
     db.query.projects.findMany({
-      where: (projects, { eq }) => eq(projects.userId, uid),
+      where: projectScope(space),
       orderBy: (projects) => [
         asc(projects.position),
         desc(projects.updatedAt),
@@ -553,9 +576,9 @@ export function flattenSectionTree(
 
 // Collect the ids of every project belonging to a section or any of its
 // descendant sections. Uses a visited set so a malformed cycle can't loop.
-async function collectSubtreeProjectIds(sectionId: string, uid: string): Promise<string[]> {
+async function collectSubtreeProjectIds(sectionId: string, space: MutationSpace): Promise<string[]> {
   const sectionRows = await db.query.sections.findMany({
-    where: (sections, { eq }) => eq(sections.userId, uid),
+    where: sectionScope(space),
     columns: { id: true, parentId: true },
   });
   const childrenByParent = new Map<string, string[]>();
@@ -578,7 +601,7 @@ async function collectSubtreeProjectIds(sectionId: string, uid: string): Promise
   }
 
   const projectRows = await db.query.projects.findMany({
-    where: (projects, { eq }) => eq(projects.userId, uid),
+    where: projectScope(space),
     columns: { id: true, sectionId: true },
   });
   return projectRows
@@ -626,11 +649,10 @@ export type SectionBoardLane = {
 // in the section's subtree, bucketed into normalized status lanes (columns are
 // per-project and user-editable, so we merge by status key, mirroring the
 // dashboard's approach).
-export async function getSectionBoard(sectionId: string) {
-  const uid = await getCurrentUserId();
+export async function getSectionBoard(sectionId: string, teamId?: string) {
+  const space = await getSpaceContext(teamId);
   const section = await db.query.sections.findFirst({
-    where: (sections, { eq, and }) =>
-      and(eq(sections.id, sectionId), eq(sections.userId, uid)),
+    where: and(eq(sections.id, sectionId), sectionScope(space)),
     columns: { id: true, name: true, slug: true, description: true, updatedAt: true },
   });
 
@@ -638,7 +660,7 @@ export async function getSectionBoard(sectionId: string) {
     notFound();
   }
 
-  const projectIds = await collectSubtreeProjectIds(sectionId, uid);
+  const projectIds = await collectSubtreeProjectIds(sectionId, space);
 
   const lanes: SectionBoardLane[] = SECTION_LANES.map((lane) => ({
     ...lane,
@@ -713,13 +735,13 @@ export type SectionBoard = Awaited<ReturnType<typeof getSectionBoard>>;
 // Fetch a single task with the full shape the TaskDetailsSheet needs, plus its
 // own project's columns — used when opening a card from an aggregated section
 // board so edits route through the existing per-project task actions.
-export async function getTaskForSheet(taskId: string) {
-  const uid = await getCurrentUserId();
+export async function getTaskForSheet(taskId: string, teamId?: string) {
+  const space = await getSpaceContext(teamId);
   const task = await db.query.tasks.findFirst({
     where: (tasks, { eq }) => eq(tasks.id, taskId),
     with: {
       tag: true,
-      project: { columns: { userId: true } },
+      project: { columns: { userId: true, teamId: true } },
       storyTasks: {
         orderBy: (storyTasks) => [asc(storyTasks.position), asc(storyTasks.createdAt)],
         with: { tag: true },
@@ -727,8 +749,11 @@ export async function getTaskForSheet(taskId: string) {
     },
   });
 
-  // Not found, or the card belongs to another user's project.
-  if (!task || task.project?.userId !== uid) {
+  // Not found, or the card belongs to a project outside this space.
+  const inSpace = space.teamId
+    ? task?.project?.teamId === space.teamId
+    : task?.project?.userId === space.uid && !task?.project?.teamId;
+  if (!task || !inSpace) {
     return null;
   }
 

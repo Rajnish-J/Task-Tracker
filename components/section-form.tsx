@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ export function SectionForm({
 }: SectionFormProps) {
   return (
     <form action={action} className="space-y-4">
+      <SpaceField />
       {sectionId ? <input type="hidden" name="sectionId" value={sectionId} /> : null}
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor={`${idPrefix}-name`}>

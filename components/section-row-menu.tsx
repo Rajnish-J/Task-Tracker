@@ -5,6 +5,7 @@ import { MoreHorizontal } from "lucide-react";
 
 import { deleteSection, updateSection } from "@/app/actions";
 import { SectionForm } from "@/components/section-form";
+import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,6 +111,7 @@ export function SectionRowMenu({ section, sections }: SectionRowMenuProps) {
             </DialogDescription>
           </DialogHeader>
           <form action={deleteSection} className="space-y-4">
+            <SpaceField />
             <input type="hidden" name="sectionId" value={section.id} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>

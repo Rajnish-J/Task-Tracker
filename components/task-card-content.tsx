@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { createStoryTaskOnBoard, deleteTask, toggleStoryTaskOnBoard } from "@/app/actions";
+import { SpaceField, useSpace } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
 import { TagPicker } from "@/components/tag-picker";
@@ -85,6 +86,7 @@ export function TaskCardContent({
   projectName?: string;
 }) {
   const router = useRouter();
+  const { basePath } = useSpace();
   const [tasksOpen, setTasksOpen] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -110,7 +112,7 @@ export function TaskCardContent({
                 onPointerDown={stopCardEvents}
                 onClick={(event) => {
                   stopCardEvents(event);
-                  router.push(`/projects/${projectId}?task=${task.id}`);
+                  router.push(`${basePath}/projects/${projectId}?task=${task.id}`);
                 }}
                 className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -181,6 +183,7 @@ export function TaskCardContent({
                       onPointerDown={stopCardEvents}
                       className="contents"
                     >
+                      <SpaceField />
                       <input type="hidden" name="projectId" value={projectId} />
                       <input type="hidden" name="taskId" value={task.id} />
                       <input type="hidden" name="storyTaskId" value={storyTask.id} />
@@ -232,6 +235,7 @@ export function TaskCardContent({
                   onPointerDown={stopCardEvents}
                   className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/30 p-2"
                 >
+                  <SpaceField />
                   <input type="hidden" name="projectId" value={projectId} />
                   <input type="hidden" name="taskId" value={task.id} />
                   <div className="flex items-center gap-2">
@@ -360,6 +364,7 @@ export function TaskCardContent({
               Cancel
             </Button>
             <form action={deleteTask}>
+              <SpaceField />
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="taskId" value={task.id} />
               <SubmitButton variant="destructive" pendingLabel="Deleting...">

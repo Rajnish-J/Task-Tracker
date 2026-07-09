@@ -23,6 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { moveTask } from "@/app/actions";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
+import { useSpace } from "@/components/space-context";
 import { TaskCardContent, type TaskCardData } from "@/components/task-card-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ type KanbanBoardProps = {
 
 export function KanbanBoard({ project }: KanbanBoardProps) {
   const router = useRouter();
+  const { teamId } = useSpace();
   const [board, setBoard] = React.useState<Column[]>(project.columns);
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
@@ -165,17 +167,21 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
 
     setBoard(nextBoard);
 
-    void moveTask({
-      projectId: project.id,
-      taskId: movedId,
-      toColumnId,
-      toIndex: Math.max(0, toIndex),
-    }).then(() => router.refresh());
+    void moveTask(
+      {
+        projectId: project.id,
+        taskId: movedId,
+        toColumnId,
+        toIndex: Math.max(0, toIndex),
+      },
+      teamId ?? undefined,
+    ).then(() => router.refresh());
   }
 
   return (
     <div className="flex h-full flex-col">
       <DndContext
+        id="kanban-board"
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
@@ -262,6 +268,7 @@ type SortableTaskCardProps = {
 
 function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
   const router = useRouter();
+  const { basePath } = useSpace();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
@@ -281,7 +288,7 @@ function SortableTaskCard({ task, projectId }: SortableTaskCardProps) {
       // A stationary click opens the task detail; the PointerSensor's 5px
       // activation distance means a drag never fires this. Inner controls
       // stopPropagation, so they keep their own behavior.
-      onClick={() => router.push(`/projects/${projectId}?task=${task.id}`)}
+      onClick={() => router.push(`${basePath}/projects/${projectId}?task=${task.id}`)}
       className="group cursor-grab touch-none rounded-lg border border-border/60 bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
     >
       <TaskCardContent task={task} projectId={projectId} />

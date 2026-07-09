@@ -4,6 +4,7 @@ import * as React from "react";
 import { Plus } from "lucide-react";
 
 import { createTask } from "@/app/actions";
+import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
@@ -68,6 +69,7 @@ export function CreateTaskDialog({
           </DialogDescription>
         </DialogHeader>
         <form action={createTask} className="space-y-4">
+          <SpaceField />
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="columnId" value={selectedColumn} />
           <input type="hidden" name="priority" value={priority} />

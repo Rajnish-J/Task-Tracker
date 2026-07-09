@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { getTagsAction } from "@/app/actions";
+import { useSpace } from "@/components/space-context";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -31,6 +32,7 @@ export function TagPicker({
   defaultTag?: TagOption | null;
   idPrefix?: string;
 }) {
+  const { teamId } = useSpace();
   const [tags, setTags] = React.useState<TagOption[]>(defaultTag ? [defaultTag] : []);
   const [selection, setSelection] = React.useState<string>(defaultTag?.id ?? NONE);
   const [newName, setNewName] = React.useState("");
@@ -38,7 +40,7 @@ export function TagPicker({
 
   React.useEffect(() => {
     let active = true;
-    getTagsAction()
+    getTagsAction(teamId ?? undefined)
       .then((rows) => {
         if (!active) return;
         const merged =
@@ -53,7 +55,7 @@ export function TagPicker({
     return () => {
       active = false;
     };
-  }, [defaultTag]);
+  }, [defaultTag, teamId]);
 
   const isNew = selection === NEW;
   const selectedExistingId = selection !== NEW && selection !== NONE ? selection : "";

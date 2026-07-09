@@ -6,6 +6,7 @@ import { Check, Pencil } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { deleteTask, updateTask } from "@/app/actions";
+import { SpaceField } from "@/components/space-context";
 import { StoryTasksPanel } from "@/components/story-tasks-panel";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
@@ -126,6 +127,7 @@ function TaskDetailsForm({
       ) : (
       <>
       <form action={updateTask} className="mt-6 space-y-5">
+        <SpaceField />
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="taskId" value={task.id} />
         <input type="hidden" name="columnId" value={selectedColumn} />
@@ -232,6 +234,7 @@ function TaskDetailsForm({
       </div>
 
       <form action={deleteTask} className="mt-3">
+        <SpaceField />
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="taskId" value={task.id} />
         <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">

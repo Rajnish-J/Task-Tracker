@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { updateProjectSection } from "@/app/actions";
+import { SpaceField } from "@/components/space-context";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,7 @@ export function ProjectSectionSelect({
 
   return (
     <form ref={formRef} action={updateProjectSection} className="flex items-center gap-2">
+      <SpaceField />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="sectionId" value={value} />
       <label htmlFor="project-section-select" className="text-xs font-medium text-muted-foreground">

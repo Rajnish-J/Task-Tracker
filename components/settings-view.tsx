@@ -58,6 +58,9 @@ type SettingsViewProps = {
   currentSessionToken: string;
   sessions: SessionRow[];
   accounts: AccountRow[];
+  // Server-rendered notifications card (team invites etc.), slotted in so this
+  // component stays focused on account concerns.
+  notificationsSlot?: React.ReactNode;
 };
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -122,6 +125,7 @@ export function SettingsView({
   currentSessionToken,
   sessions,
   accounts,
+  notificationsSlot,
 }: SettingsViewProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -368,6 +372,9 @@ export function SettingsView({
             )}
           </CardContent>
         </Card>
+
+        {/* Notifications (team invites and membership updates) */}
+        {notificationsSlot}
 
         {/* Appearance */}
         <Card>

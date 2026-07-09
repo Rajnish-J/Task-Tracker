@@ -6,6 +6,7 @@ import { MoreHorizontal } from "lucide-react";
 
 import { deleteProject, moveProjectToSection, updateProject } from "@/app/actions";
 import { ProjectForm } from "@/components/project-form";
+import { SpaceField, useSpace } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +48,7 @@ type ProjectRowMenuProps = {
 // and delete. Used by both nav-projects and nav-sections rows.
 export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectRowMenuProps) {
   const router = useRouter();
+  const { teamId } = useSpace();
   const [, startTransition] = React.useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
@@ -81,10 +83,13 @@ export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectR
                 value={currentSectionId ?? ""}
                 onValueChange={(value) =>
                   startTransition(async () => {
-                    await moveProjectToSection({
-                      projectId: project.id,
-                      sectionId: (value as string) || null,
-                    });
+                    await moveProjectToSection(
+                      {
+                        projectId: project.id,
+                        sectionId: (value as string) || null,
+                      },
+                      teamId ?? undefined,
+                    );
                     router.refresh();
                   })
                 }
@@ -141,6 +146,7 @@ export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectR
             </DialogDescription>
           </DialogHeader>
           <form action={deleteProject} className="space-y-4">
+            <SpaceField />
             <input type="hidden" name="projectId" value={project.id} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { PRIORITY_OPTIONS } from "@/lib/constants";
+import { useSpace } from "@/components/space-context";
 import type { TimelineData } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -209,6 +210,7 @@ type BarItem = {
 
 export function TimelineBoard({ projects }: { projects: TimelineData }) {
   const router = useRouter();
+  const { basePath } = useSpace();
   const [view, setView] = React.useState<View>("week");
   const [anchor, setAnchor] = React.useState<Date>(() => new Date());
 
@@ -343,7 +345,7 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
   }
 
   function openTask(id: string) {
-    router.push(`/timeline?task=${id}`);
+    router.push(`${basePath}/timeline?task=${id}`);
   }
 
   function clearAll() {

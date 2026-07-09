@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { reorderProjects } from "@/app/actions";
 import { ProjectRowMenu } from "@/components/project-row-menu";
 import { SectionRowMenu } from "@/components/section-row-menu";
+import { useSpace } from "@/components/space-context";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -107,6 +108,7 @@ function SectionRow({
   currentProjectId?: string;
   collapseNonce?: number;
 }) {
+  const { basePath } = useSpace();
   // Sections start collapsed so a section's projects (and child sections) stay
   // hidden until the user expands the row.
   const [open, setOpen] = React.useState(false);
@@ -145,7 +147,7 @@ function SectionRow({
           </button>
         ) : null}
         <SidebarMenuButton
-          render={<Link href={`/sections/${node.id}`} />}
+          render={<Link href={`${basePath}/sections/${node.id}`} />}
           isActive={currentSectionId === node.id}
           tooltip={node.name}
           className="pr-16"
@@ -210,6 +212,7 @@ function SectionProjects({
   currentProjectId?: string;
 }) {
   const router = useRouter();
+  const { teamId } = useSpace();
   const [items, setItems] = React.useState<SectionProject[]>(projects);
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
@@ -251,9 +254,10 @@ function SectionProjects({
     const next = arrayMove(items, oldIndex, newIndex);
     setItems(next);
 
-    void reorderProjects({ orderedIds: next.map((project) => project.id) }).then(() =>
-      router.refresh(),
-    );
+    void reorderProjects(
+      { orderedIds: next.map((project) => project.id) },
+      teamId ?? undefined,
+    ).then(() => router.refresh());
   }
 
   if (items.length === 0) {
@@ -306,6 +310,7 @@ function SortableSectionProject({
   sections: { id: string; label: string }[];
   currentProjectId?: string;
 }) {
+  const { basePath } = useSpace();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: project.id });
 
@@ -318,7 +323,7 @@ function SortableSectionProject({
   return (
     <SidebarMenuItem ref={setNodeRef} style={style}>
       <SidebarMenuButton
-        render={<Link href={`/projects/${project.id}`} />}
+        render={<Link href={`${basePath}/projects/${project.id}`} />}
         isActive={currentProjectId === project.id}
         tooltip={project.name}
         className="pr-16"

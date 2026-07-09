@@ -33,6 +33,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { reorderProjects } from "@/app/actions";
 import { ProjectRowMenu } from "@/components/project-row-menu";
+import { useSpace } from "@/components/space-context";
 import { cn } from "@/lib/utils";
 import type { SectionProject as Project } from "@/lib/data";
 
@@ -46,6 +47,7 @@ export function NavProjects({
   sections: { id: string; label: string }[];
 }) {
   const router = useRouter();
+  const { teamId } = useSpace();
   const [items, setItems] = React.useState<Project[]>(projects);
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
@@ -93,9 +95,10 @@ export function NavProjects({
     const next = arrayMove(items, oldIndex, newIndex);
     setItems(next);
 
-    void reorderProjects({ orderedIds: next.map((project) => project.id) }).then(() =>
-      router.refresh(),
-    );
+    void reorderProjects(
+      { orderedIds: next.map((project) => project.id) },
+      teamId ?? undefined,
+    ).then(() => router.refresh());
   }
 
   // Hidden entirely when every project lives in a section — the "Ungrouped"
@@ -154,6 +157,7 @@ function SortableProjectItem({
   isActive: boolean;
   sections: { id: string; label: string }[];
 }) {
+  const { basePath } = useSpace();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: project.id });
 
@@ -166,7 +170,7 @@ function SortableProjectItem({
   return (
     <SidebarMenuItem ref={setNodeRef} style={style}>
       <SidebarMenuButton
-        render={<Link href={`/projects/${project.id}`} />}
+        render={<Link href={`${basePath}/projects/${project.id}`} />}
         isActive={isActive}
         tooltip={project.name}
         className="pr-16"

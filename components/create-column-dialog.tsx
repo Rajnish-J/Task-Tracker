@@ -4,6 +4,7 @@ import * as React from "react";
 import { Columns3, Plus } from "lucide-react";
 
 import { createColumn } from "@/app/actions";
+import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { COLUMN_COLOR_OPTIONS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ export function CreateColumnDialog({ projectId }: { projectId: string }) {
           </DialogDescription>
         </DialogHeader>
         <form action={createColumn} className="space-y-4">
+          <SpaceField />
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="color" value={color} />
           <div className="space-y-2">

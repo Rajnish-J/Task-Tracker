@@ -14,3 +14,21 @@ export async function getCurrentUserId(): Promise<string> {
   }
   return session.user.id;
 }
+
+// Same guard, but for callers that also need identity fields (e.g. the team
+// creation limit is keyed on the user's email).
+export async function getCurrentUser(): Promise<{
+  id: string;
+  email: string;
+  name: string;
+}> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect("/login");
+  }
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+  };
+}

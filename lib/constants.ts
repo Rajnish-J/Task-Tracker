@@ -36,3 +36,21 @@ export const COLUMN_ACCENT_META: Record<string, { label: string; swatch: string 
 export const TAG_COLOR_OPTIONS = COLUMN_COLOR_OPTIONS;
 
 export const TAG_COLOR_META = COLUMN_ACCENT_META;
+
+// Teams reuse the same accent palette for their identity color.
+export const TEAM_COLOR_OPTIONS = COLUMN_COLOR_OPTIONS;
+
+export const TEAM_COLOR_META = COLUMN_ACCENT_META;
+
+// A user may create at most this many teams (membership in other people's
+// teams doesn't count; deleting a team frees the slot).
+export const TEAM_CREATION_LIMIT = 2;
+
+// Comma-separated env override; hardcoded fallback keeps the exemption
+// working with no env change.
+export const TEAM_LIMIT_EXEMPT_EMAILS = (
+  process.env.TEAM_LIMIT_EXEMPT_EMAILS ?? "rajalehe7102@gmail.com"
+)
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);

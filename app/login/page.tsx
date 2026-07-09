@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,13 +20,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/theme-provider";
+import SideRays from "@/components/side-rays";
 import { signIn, signUp } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { signInSchema, signUpSchema, type SignUpValues } from "./schema";
-
-// Illustration for the left panel. Swap to "/login/images.jpg" (kanban board)
-// if you prefer that artwork.
-const LOGIN_ILLUSTRATION = "/login/news-16.png";
 
 type Mode = "signin" | "signup";
 
@@ -88,7 +84,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-sm font-semibold text-foreground">
         {label}
       </label>
       <div className="relative">
@@ -99,7 +95,7 @@ function Field({
           id={id}
           aria-invalid={!!error}
           className={cn(
-            "h-12 rounded-2xl border-transparent bg-muted/60 pl-10 shadow-sm transition-colors focus-visible:bg-background",
+            "h-12 rounded-2xl border-border/60 bg-muted/60 pl-10 shadow-sm transition-colors focus-visible:bg-background dark:border-white/10 dark:bg-white/5 dark:placeholder:text-white/30 dark:focus-visible:bg-white/10 dark:focus-visible:ring-white/20",
             trailing && "pr-10",
           )}
           {...props}
@@ -107,7 +103,7 @@ function Field({
         {trailing}
       </div>
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
+        <p className="text-xs font-medium text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -190,63 +186,36 @@ function LoginContent() {
   const busy = isSubmitting || googleLoading;
 
   return (
-    <main className="grid min-h-svh lg:grid-cols-2">
-      <div className="absolute top-4 right-4 z-10">
+    <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-12 dark:bg-[#05060a]">
+      <div className="absolute inset-0 z-0 opacity-40 dark:opacity-100">
+        <SideRays
+          speed={2.5}
+          rayColor1="#EAB308"
+          rayColor2="#96c8ff"
+          intensity={2}
+          spread={2}
+          origin="top-right"
+          saturation={1.5}
+          blend={0.75}
+          falloff={1.6}
+        />
+      </div>
+
+      <div className="absolute top-4 right-4 z-20">
         <ThemeToggle />
       </div>
 
-      {/* Illustration panel — floating, curvy, with soft blur */}
-      <div className="hidden p-4 lg:block">
-        <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-[2.5rem] bg-linear-to-br from-primary/20 via-primary/10 to-background p-10 shadow-lg ring-1 ring-border/50">
-          {/* Blurred colour blobs for depth */}
-          <div className="pointer-events-none absolute -top-16 -left-16 size-72 rounded-full bg-primary/25 blur-3xl" />
-          <div className="pointer-events-none absolute top-1/3 -right-10 size-64 rounded-full bg-primary/15 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 left-1/4 size-72 rounded-full bg-primary/10 blur-3xl" />
-
-          <div className="relative flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+      {/* Centered login card */}
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="rounded-3xl border border-border/60 bg-card/70 p-8 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-white/5">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <span className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
               <LayoutDashboard className="size-5" />
             </span>
-            <span className="font-heading text-lg font-semibold tracking-tight">
-              Task Tracker
-            </span>
-          </div>
-
-          {/* Glassy card holding the artwork */}
-          <div className="relative my-8 flex-1">
-            <div className="absolute inset-0 rounded-[2rem] border border-white/40 bg-white/30 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-white/5" />
-            <div className="absolute inset-3">
-              <Image
-                src={LOGIN_ILLUSTRATION}
-                alt="Illustration of an organised, productive workspace"
-                fill
-                priority
-                sizes="(max-width: 1024px) 0px, 50vw"
-                className="object-contain"
-              />
-            </div>
-          </div>
-
-          <div className="relative max-w-md">
-            <h2 className="font-heading text-2xl font-semibold">
-              Organise everything, effortlessly.
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Plan projects, track tasks, and hit your deadlines — all in one
-              tidy board.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Form panel */}
-      <div className="flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-16">
-        <div className="mx-auto w-full max-w-sm">
-          <div className="mb-6">
-            <h1 className="font-heading text-2xl font-bold tracking-tight">
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-foreground">
               {isSignup ? "Create your account" : "Welcome back"}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
               {isSignup
                 ? "Sign up to start organising your work."
                 : "Sign in to access your projects and boards."}
@@ -317,12 +286,12 @@ function LoginContent() {
             ) : null}
 
             {!isSignup ? (
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted-foreground select-none">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="size-4 rounded border-input accent-primary"
+                  className="size-4 rounded border-input accent-primary dark:border-white/20"
                 />
                 Remember me
               </label>
@@ -331,7 +300,7 @@ function LoginContent() {
             {formError ? (
               <div
                 role="alert"
-                className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive"
               >
                 {formError}
               </div>
@@ -339,7 +308,7 @@ function LoginContent() {
 
             <Button
               type="submit"
-              className="h-12 w-full rounded-2xl text-sm"
+              className="h-12 w-full rounded-2xl text-sm font-semibold"
               disabled={busy}
             >
               {isSubmitting ? (
@@ -355,16 +324,16 @@ function LoginContent() {
             </Button>
           </form>
 
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
+          <div className="my-5 flex items-center gap-3 text-xs font-medium text-muted-foreground">
+            <span className="h-px flex-1 bg-border dark:bg-white/10" />
             Or continue with
-            <span className="h-px flex-1 bg-border" />
+            <span className="h-px flex-1 bg-border dark:bg-white/10" />
           </div>
 
           <Button
             type="button"
             variant="outline"
-            className="h-12 w-full gap-2 rounded-2xl text-sm"
+            className="h-12 w-full gap-2 rounded-2xl text-sm font-semibold dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"
             onClick={handleGoogle}
             disabled={busy}
           >
@@ -376,12 +345,12 @@ function LoginContent() {
             {googleLoading ? "Redirecting…" : "Continue with Google"}
           </Button>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-6 text-center text-sm font-medium text-muted-foreground">
             {isSignup ? "Already have an account? " : "Don't have an account? "}
             <button
               type="button"
               onClick={switchMode}
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className="font-semibold text-foreground underline-offset-4 hover:underline"
             >
               {isSignup ? "Sign in" : "Sign up here"}
             </button>

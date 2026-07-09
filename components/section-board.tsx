@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { BoardSkeleton } from "@/components/board-skeleton";
 import { BoardTagFilter } from "@/components/board-tag-filter";
+import { useSpace } from "@/components/space-context";
 import { TaskCardContent } from "@/components/task-card-content";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -22,6 +23,7 @@ type SectionBoardProps = {
 // not draggable. Each card shows its source project as a badge.
 export function SectionBoard({ sectionId, lanes }: SectionBoardProps) {
   const router = useRouter();
+  const { basePath } = useSpace();
   const [selectedTagId, setSelectedTagId] = React.useState("");
   // Brief skeleton flash while the filter re-applies, for a clear "loading" beat.
   const [isFiltering, setIsFiltering] = React.useState(false);
@@ -92,11 +94,11 @@ export function SectionBoard({ sectionId, lanes }: SectionBoardProps) {
                       key={task.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => router.push(`/sections/${sectionId}?task=${task.id}`)}
+                      onClick={() => router.push(`${basePath}/sections/${sectionId}?task=${task.id}`)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          router.push(`/sections/${sectionId}?task=${task.id}`);
+                          router.push(`${basePath}/sections/${sectionId}?task=${task.id}`);
                         }
                       }}
                       className="cursor-pointer rounded-lg border border-border/60 bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
