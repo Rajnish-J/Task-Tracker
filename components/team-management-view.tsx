@@ -4,18 +4,30 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   type ColumnDef,
-  type ExpandedState,
   flexRender,
   getCoreRowModel,
-  getExpandedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 
 import { grantMemberPermissions, revokeMemberPermissions } from "@/app/team-permission-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -24,85 +36,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ACTION_VALUES, type Action, RESOURCE_VALUES, type Resource } from "@/lib/db/schema";
+import { PermissionGrid, permissionKey, type PermissionKey } from "@/components/team-permission-grid";
+import { TeamManageAccessDialog } from "@/components/team-manage-access-dialog";
+import type { Action, Resource } from "@/lib/db/schema";
 import { initials } from "@/lib/utils/initials";
 import type { TeamDetail } from "@/lib/team-data";
 
-const RESOURCE_LABELS: Record<Resource, string> = {
-  project: "Project",
-  section: "Section",
-  column: "Column",
-  task: "Task / Card",
-};
-
-const ACTION_LABELS: Record<Action, string> = {
-  create: "Create",
-  update: "Update",
-  delete: "Delete",
-};
-
 type Member = TeamDetail["members"][number];
-type PermissionKey = `${Resource}:${Action}`;
-
-function permissionKey(resource: Resource, action: Action): PermissionKey {
-  return `${resource}:${action}`;
-}
-
-function rehydrateGrid(memberPermissions: TeamDetail["memberPermissions"]) {
-  const map = new Map<string, Set<PermissionKey>>();
-  for (const [userId, pairs] of Object.entries(memberPermissions)) {
-    map.set(userId, new Set(pairs as PermissionKey[]));
-  }
-  return map;
-}
-
-// Reusable 4x3 grid of Project/Section/Column/Task x Create/Update/Delete
-// checkboxes. `checked` decides each cell's state; `onToggle` fires with the
-// next boolean for that (resource, action) pair.
-function PermissionGrid({
-  checked,
-  onToggle,
-  disabled,
-}: {
-  checked: (resource: Resource, action: Action) => boolean;
-  onToggle: (resource: Resource, action: Action, next: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <table className="text-sm">
-      <thead>
-        <tr>
-          <th className="w-32 text-left font-medium text-muted-foreground" />
-          {ACTION_VALUES.map((action) => (
-            <th key={action} className="px-3 pb-1 text-left font-medium text-muted-foreground">
-              {ACTION_LABELS[action]}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {RESOURCE_VALUES.map((resource) => (
-          <tr key={resource}>
-            <td className="pr-3 py-1 font-medium">{RESOURCE_LABELS[resource]}</td>
-            {ACTION_VALUES.map((action) => (
-              <td key={action} className="px-3 py-1">
-                <Checkbox
-                  checked={checked(resource, action)}
-                  disabled={disabled}
-                  onCheckedChange={(value) => onToggle(resource, action, value)}
-                />
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
 
 export function TeamManagementView({ team }: { team: TeamDetail }) {
   const router = useRouter();
-  const [, startTransition] = React.useTransition();
   const [bulkPending, startBulkTransition] = React.useTransition();
 
   const nonOwnerMembers = React.useMemo(
@@ -110,43 +53,10 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
     [team.members],
   );
 
-  const [localGrid, setLocalGrid] = React.useState(() => rehydrateGrid(team.memberPermissions));
-  React.useEffect(() => {
-    setLocalGrid(rehydrateGrid(team.memberPermissions));
-  }, [team.memberPermissions]);
-
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
-  const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [bulkChecked, setBulkChecked] = React.useState<Set<PermissionKey>>(new Set());
-
-  function toggleSingle(userId: string, resource: Resource, action: Action, next: boolean) {
-    const key = permissionKey(resource, action);
-    setLocalGrid((prev) => {
-      const copy = new Map(prev);
-      const set = new Set(copy.get(userId) ?? []);
-      if (next) set.add(key);
-      else set.delete(key);
-      copy.set(userId, set);
-      return copy;
-    });
-
-    startTransition(async () => {
-      try {
-        const run = next ? grantMemberPermissions : revokeMemberPermissions;
-        await run({ teamId: team.id, userIds: [userId], pairs: [{ resource, action }] });
-        router.refresh();
-      } catch {
-        setLocalGrid((prev) => {
-          const copy = new Map(prev);
-          const set = new Set(copy.get(userId) ?? []);
-          if (next) set.delete(key);
-          else set.add(key);
-          copy.set(userId, set);
-          return copy;
-        });
-      }
-    });
-  }
+  const [bulkOpen, setBulkOpen] = React.useState(false);
+  const [manageAccessMember, setManageAccessMember] = React.useState<Member | null>(null);
 
   const columns = React.useMemo<ColumnDef<Member>[]>(
     () => [
@@ -196,21 +106,45 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
         },
       },
       {
-        id: "expand",
-        header: "",
+        id: "role",
+        header: "Role",
         cell: ({ row }) => (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => row.toggleExpanded()}
-            aria-label={row.getIsExpanded() ? "Collapse permissions" : "Expand permissions"}
-          >
-            {row.getIsExpanded() ? (
-              <ChevronDown className="size-4" />
-            ) : (
-              <ChevronRight className="size-4" />
-            )}
-          </Button>
+          <Badge variant="outline" className="capitalize">
+            {row.original.role}
+          </Badge>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: () => (
+          <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            Active
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Actions for ${row.original.user.name}`}
+                />
+              }
+            >
+              <MoreHorizontal className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setManageAccessMember(row.original)}>
+                Manage Access
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ),
       },
     ],
@@ -221,12 +155,9 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
     data: nonOwnerMembers,
     columns,
     getRowId: (row) => row.user.id,
-    state: { rowSelection, expanded },
+    state: { rowSelection },
     onRowSelectionChange: setRowSelection,
-    onExpandedChange: setExpanded,
-    getRowCanExpand: () => true,
     getCoreRowModel: getCoreRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
   });
 
   const selectedRows = table.getSelectedRowModel().rows;
@@ -244,6 +175,7 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
       await run({ teamId: team.id, userIds, pairs });
       setRowSelection({});
       setBulkChecked(new Set());
+      setBulkOpen(false);
       router.refresh();
     });
   }
@@ -252,38 +184,15 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         You (owner) have full access to everything in this team. Grant or revoke permissions for
-        other members below.
+        other members below — per member, or scoped to a specific project.
       </p>
 
       {selectedRows.length >= 2 ? (
-        <div className="space-y-3 rounded-md border border-border/60 bg-muted/30 p-4">
+        <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 p-3">
           <p className="text-sm font-medium">{selectedRows.length} members selected</p>
-          <PermissionGrid
-            checked={(resource, action) => bulkChecked.has(permissionKey(resource, action))}
-            onToggle={(resource, action, next) => {
-              setBulkChecked((prev) => {
-                const copy = new Set(prev);
-                const key = permissionKey(resource, action);
-                if (next) copy.add(key);
-                else copy.delete(key);
-                return copy;
-              });
-            }}
-            disabled={bulkPending}
-          />
-          <div className="flex gap-2">
-            <Button size="sm" disabled={bulkPending} onClick={() => applyBulk(true)}>
-              {bulkPending ? "Applying…" : "Grant selected"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={bulkPending}
-              onClick={() => applyBulk(false)}
-            >
-              {bulkPending ? "Applying…" : "Revoke selected"}
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => setBulkOpen(true)}>
+            Bulk edit default permissions
+          </Button>
         </div>
       ) : null}
 
@@ -305,30 +214,13 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <React.Fragment key={row.id}>
-                  <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                  {row.getIsExpanded() ? (
-                    <TableRow>
-                      <TableCell colSpan={row.getVisibleCells().length} className="bg-muted/20">
-                        <PermissionGrid
-                          checked={(resource, action) =>
-                            localGrid.get(row.original.user.id)?.has(permissionKey(resource, action)) ??
-                            false
-                          }
-                          onToggle={(resource, action, next) =>
-                            toggleSingle(row.original.user.id, resource, action, next)
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </React.Fragment>
+                <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))
             ) : (
               <TableRow>
@@ -340,6 +232,56 @@ export function TeamManagementView({ team }: { team: TeamDetail }) {
           </TableBody>
         </Table>
       </div>
+
+      {manageAccessMember ? (
+        <TeamManageAccessDialog
+          key={manageAccessMember.user.id}
+          open={Boolean(manageAccessMember)}
+          onOpenChange={(open) => !open && setManageAccessMember(null)}
+          teamId={team.id}
+          member={manageAccessMember}
+          initialGrid={team.memberPermissions[manageAccessMember.user.id] ?? {}}
+          projects={team.projects}
+          sections={team.sections}
+        />
+      ) : null}
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk edit default permissions</DialogTitle>
+            <DialogDescription>
+              Applies to {selectedRows.length} selected members, across every project in this team.
+            </DialogDescription>
+          </DialogHeader>
+          <PermissionGrid
+            checked={(resource, action) => bulkChecked.has(permissionKey(resource, action))}
+            onToggle={(resource, action, next) => {
+              setBulkChecked((prev) => {
+                const copy = new Set(prev);
+                const key = permissionKey(resource, action);
+                if (next) copy.add(key);
+                else copy.delete(key);
+                return copy;
+              });
+            }}
+            disabled={bulkPending}
+          />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" disabled={bulkPending} onClick={() => applyBulk(true)}>
+              {bulkPending ? "Applying…" : "Grant selected"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkPending}
+              onClick={() => applyBulk(false)}
+            >
+              {bulkPending ? "Applying…" : "Revoke selected"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

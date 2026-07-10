@@ -50,8 +50,8 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-y-auto">
-      <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -106,7 +106,9 @@ export function DashboardShell({
         </div>
       </header>
 
-      {isPending ? <DashboardSkeleton /> : children}
+      <div className="flex-1 overflow-y-auto">
+        {isPending ? <DashboardSkeleton /> : children}
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
-import { and, eq, ilike } from "drizzle-orm";
+import { and, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth-session";
@@ -213,7 +213,7 @@ export async function searchUsersByEmail(
   }
 
   const rows = await db.query.user.findMany({
-    where: ilike(user.email, `${escaped}%`),
+    where: or(ilike(user.name, `%${escaped}%`), ilike(user.email, `%${escaped}%`)),
     columns: { id: true, name: true, email: true, image: true },
     orderBy: (user, { asc }) => [asc(user.email)],
     limit: 8 + excludedIds.size,

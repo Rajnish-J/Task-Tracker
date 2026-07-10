@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { NotificationBell } from "@/components/notification-bell";
 import { SpaceProvider } from "@/components/space-context";
 import type { SwitcherTeam } from "@/components/space-switcher";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -38,6 +39,9 @@ export function AppShell({
           unreadCount={unreadCount}
         />
         <SidebarInset className="min-h-svh min-w-0 overflow-hidden">{children}</SidebarInset>
+        <div className="fixed right-4 top-4 z-40">
+          <NotificationBell unreadCount={unreadCount} variant="header" />
+        </div>
         {/* The chat assistant operates on personal data only. */}
         {teamId ? null : <ChatWidget />}
       </SidebarProvider>

@@ -42,6 +42,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { TEAM_COLOR_OPTIONS } from "@/lib/constants";
 import type { TeamDetail } from "@/lib/team-data";
 import { initials } from "@/lib/utils/initials";
+import { useInterval } from "@/hooks/use-interval";
+
+const POLL_INTERVAL_MS = 15000;
 
 // Team management: details (owner-editable), members (invite / remove /
 // leave), pending invitations, and the owner's danger zone.
@@ -54,6 +57,10 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [inviteError, setInviteError] = React.useState<string | null>(null);
   const [inviting, setInviting] = React.useState(false);
+
+  // Poll so members/invitations added by someone else show up without a
+  // manual reload; `team` cascades down into TeamManagementView too.
+  useInterval(() => router.refresh(), POLL_INTERVAL_MS);
 
   const handleInvite = async (user: { id: string }) => {
     setInviting(true);
@@ -69,8 +76,8 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
   };
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-y-auto">
-      <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <SidebarTrigger className="-ml-1 text-foreground" />
@@ -92,6 +99,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
         </div>
       </header>
 
+      <div className="flex-1 overflow-y-auto">
       <Tabs defaultValue="general" className="mx-auto w-full max-w-3xl p-4 md:p-6">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
@@ -179,7 +187,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                   onSelect={handleInvite}
                   onRemove={() => {}}
                   excludeTeamId={team.id}
-                  placeholder={inviting ? "Sending invitation…" : "Search by email to invite…"}
+                  placeholder={inviting ? "Sending invitation…" : "Search by name or email to invite…"}
                 />
                 {inviteError ? <p className="text-xs text-destructive">{inviteError}</p> : null}
               </div>
@@ -295,6 +303,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
           </TabsContent>
         ) : null}
       </Tabs>
+      </div>
 
       {/* Remove member confirm */}
       <Dialog open={Boolean(removeTarget)} onOpenChange={(open) => !open && setRemoveTarget(null)}>

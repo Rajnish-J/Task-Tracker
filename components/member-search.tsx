@@ -15,11 +15,11 @@ function initials(name?: string | null, email?: string | null) {
   return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : source.slice(0, 2)).toUpperCase();
 }
 
-// Email type-ahead for inviting members (no command/popover primitive in this
-// app, so it's a controlled input with an absolutely-positioned results list
-// styled like dropdown-menu content). Debounced server-action search; typing
-// "r" lists every registered address starting with r. Selected users render as
-// removable chips; `excludeIds` drops already-picked users from results, and
+// Name/email type-ahead for inviting members (no command/popover primitive in
+// this app, so it's a controlled input with an absolutely-positioned results
+// list styled like dropdown-menu content). Debounced server-action search
+// matches anywhere in the name or email. Selected users render as removable
+// chips; `excludeIds` drops already-picked users from results, and
 // `excludeTeamId` additionally filters out current members/pending invitees
 // server-side.
 export function MemberSearch({
@@ -27,7 +27,7 @@ export function MemberSearch({
   onSelect,
   onRemove,
   excludeTeamId,
-  placeholder = "Search by email…",
+  placeholder = "Search by name or email…",
 }: {
   selected: UserSearchResult[];
   onSelect: (user: UserSearchResult) => void;
@@ -140,7 +140,7 @@ export function MemberSearch({
           onFocus={() => query.trim() && results.length > 0 && setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          aria-label="Search users by email"
+          aria-label="Search users by name or email"
           autoComplete="off"
           className="pl-8"
         />

@@ -131,16 +131,20 @@ export function AppSidebar({
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              render={<Link href={teamId ? `${basePath}/settings` : "/settings"} />}
-              tooltip={teamId ? "Team settings" : "Settings"}
-              isActive={pathname === `${basePath}/settings`}
-            >
-              <Settings className="size-4" />
-              <span>{teamId ? "Team settings" : "Settings"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {/* Personal "Account settings" already lives in the profile menu (NavUser);
+              team settings is distinct (member/invite management), so it keeps its own entry. */}
+          {teamId ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<Link href={`${basePath}/settings`} />}
+                tooltip="Team settings"
+                isActive={pathname === `${basePath}/settings`}
+              >
+                <Settings className="size-4" />
+                <span>Team settings</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
         </SidebarMenu>
         <NavSections
           tree={tree}

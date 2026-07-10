@@ -22,8 +22,8 @@ export function TeamsView({
   const { teams, canCreateTeam } = overview;
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-y-auto">
-      <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -53,7 +53,7 @@ export function TeamsView({
         ) : null}
       </header>
 
-      <div className="flex-1 p-4 md:p-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {teams.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="max-w-md space-y-3 rounded-lg border border-dashed border-border/60 p-10 text-center">

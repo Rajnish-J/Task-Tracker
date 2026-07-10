@@ -17,11 +17,22 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { useInterval } from "@/hooks/use-interval";
 
-// Notification bell in the sidebar (the one piece of chrome present on every
-// page in both spaces). Shows the unread count from the layout; the list
-// itself is fetched when the sheet opens so page loads stay light.
-export function NotificationBell({ unreadCount }: { unreadCount: number }) {
+const POLL_INTERVAL_MS = 15000;
+
+// Notification bell present in both the sidebar footer and (via the
+// "header" variant) floating in the top-right of every page. Shows the
+// unread count from the layout; the list itself is fetched when the sheet
+// opens so page loads stay light, and then polled in the background so
+// invites/updates from other users show up without a reload.
+export function NotificationBell({
+  unreadCount,
+  variant = "sidebar",
+}: {
+  unreadCount: number;
+  variant?: "sidebar" | "header";
+}) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [items, setItems] = React.useState<NotificationItem[] | null>(null);
@@ -32,6 +43,12 @@ export function NotificationBell({ unreadCount }: { unreadCount: number }) {
     setItems(result.notifications as NotificationItem[]);
     setStatuses(result.invitationStatuses);
   }, []);
+
+  useInterval(() => void load(), POLL_INTERVAL_MS);
+
+  const liveUnreadCount = items
+    ? items.filter((item) => !item.readAt).length
+    : unreadCount;
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -44,20 +61,42 @@ export function NotificationBell({ unreadCount }: { unreadCount: number }) {
     router.refresh();
   };
 
+  const badge =
+    liveUnreadCount > 0 ? (
+      <span className="absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold leading-none text-primary-foreground">
+        {liveUnreadCount > 9 ? "9+" : liveUnreadCount}
+      </span>
+    ) : null;
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger render={<SidebarMenuButton tooltip="Notifications" />}>
-        <span className="relative flex size-4 items-center justify-center">
+      {variant === "header" ? (
+        <SheetTrigger
+          render={
+            <Button
+              variant="secondary"
+              size="icon"
+              aria-label="Notifications"
+              className="relative rounded-full shadow-md"
+            />
+          }
+        >
           <Bell className="size-4" />
-          {unreadCount > 0 ? (
-            <span className="absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold leading-none text-primary-foreground">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          ) : null}
-        </span>
-        <span>Notifications</span>
-      </SheetTrigger>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 sm:max-w-md">
+          {badge}
+        </SheetTrigger>
+      ) : (
+        <SheetTrigger render={<SidebarMenuButton tooltip="Notifications" />}>
+          <span className="relative flex size-4 items-center justify-center">
+            <Bell className="size-4" />
+            {badge}
+          </span>
+          <span>Notifications</span>
+        </SheetTrigger>
+      )}
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 rounded-xl border sm:max-w-md data-[side=right]:inset-y-4 data-[side=right]:right-4 data-[side=right]:h-auto data-[side=right]:max-h-[75vh]"
+      >
         <SheetHeader>
           <SheetTitle>Notifications</SheetTitle>
           <SheetDescription>
@@ -68,7 +107,7 @@ export function NotificationBell({ unreadCount }: { unreadCount: number }) {
           <Button
             variant="ghost"
             size="sm"
-            disabled={unreadCount === 0}
+            disabled={liveUnreadCount === 0}
             onClick={handleMarkAllRead}
           >
             Mark all read

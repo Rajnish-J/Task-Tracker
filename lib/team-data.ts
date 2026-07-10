@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth-session";
@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getTeamPermissionGrid } from "@/lib/db/permissions";
 import { isExemptFromTeamLimit } from "@/lib/db/team-mutations";
 import { TEAM_CREATION_LIMIT } from "@/lib/constants";
-import { notifications, teamMembers, teams } from "@/lib/db/schema";
+import { notifications, projects, sections, teamMembers, teams } from "@/lib/db/schema";
 
 // ---------------------------------------------------------------------------
 // Team reads. Same posture as lib/data.ts: every function resolves the
@@ -76,6 +76,32 @@ export async function getTeamsOverview() {
   };
 }
 
+async function loadMemberPermissions(teamId: string): Promise<Record<string, Record<string, string[]>>> {
+  const grid = await getTeamPermissionGrid(teamId);
+  return Object.fromEntries(
+    [...grid.entries()].map(([userId, byProject]) => [
+      userId,
+      Object.fromEntries([...byProject.entries()].map(([scope, set]) => [scope, [...set]])),
+    ]),
+  );
+}
+
+function loadTeamProjects(teamId: string) {
+  return db.query.projects.findMany({
+    where: eq(projects.teamId, teamId),
+    columns: { id: true, name: true, sectionId: true },
+    orderBy: [asc(projects.position)],
+  });
+}
+
+function loadTeamSections(teamId: string) {
+  return db.query.sections.findMany({
+    where: eq(sections.teamId, teamId),
+    columns: { id: true, name: true, parentId: true },
+    orderBy: [asc(sections.position)],
+  });
+}
+
 // Full team detail for the team settings page. Membership-guarded; pending
 // invitations are included only for the owner (members see the roster only).
 export async function getTeam(teamId: string) {
@@ -103,18 +129,17 @@ export async function getTeam(teamId: string) {
   });
   if (!team) notFound();
 
-  // Only the owner edits permissions, so the grid is only fetched for them —
-  // same role-gating pattern as pendingInvitations below. Serialized as plain
-  // arrays (Map/Set don't cross the RSC boundary into the client component).
-  const memberPermissions =
+  // Only the owner edits permissions, so the grid (and the project/section
+  // tree it's scoped against) is only fetched for them — same role-gating
+  // pattern as pendingInvitations below. Serialized as plain objects/arrays
+  // (Map/Set don't cross the RSC boundary into the client component). Keyed
+  // userId -> project scope ("*" or a projectId) -> PermissionKey[].
+  const emptyProjects: Awaited<ReturnType<typeof loadTeamProjects>> = [];
+  const emptySections: Awaited<ReturnType<typeof loadTeamSections>> = [];
+  const [memberPermissions, teamProjects, teamSections] =
     role === "owner"
-      ? Object.fromEntries(
-          [...(await getTeamPermissionGrid(teamId)).entries()].map(([userId, set]) => [
-            userId,
-            [...set],
-          ]),
-        )
-      : {};
+      ? await Promise.all([loadMemberPermissions(teamId), loadTeamProjects(teamId), loadTeamSections(teamId)])
+      : [{} as Record<string, Record<string, string[]>>, emptyProjects, emptySections];
 
   return {
     id: team.id,
@@ -125,6 +150,8 @@ export async function getTeam(teamId: string) {
     role,
     currentUserId: uid,
     memberPermissions,
+    projects: teamProjects,
+    sections: teamSections,
     members: team.members
       .map((member) => ({
         id: member.id,

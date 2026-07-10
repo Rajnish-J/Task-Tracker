@@ -184,6 +184,11 @@ export type Resource = (typeof RESOURCE_VALUES)[number];
 export const ACTION_VALUES = ["create", "update", "delete"] as const;
 export type Action = (typeof ACTION_VALUES)[number];
 
+// Sentinel projectId meaning "all projects" — i.e. today's team-wide grant.
+// Not a real project id, so this column is plain text with no FK reference
+// (matches how `resource`/`action` are already stored as unconstrained text).
+export const ALL_PROJECTS_SCOPE = "*";
+
 export const teamMemberPermissions = pgTable(
   "TeamMemberPermission",
   {
@@ -198,17 +203,20 @@ export const teamMemberPermissions = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     resource: text("resource").notNull(), // Resource
     action: text("action").notNull(), // Action
+    projectId: text("projectId").notNull().default(ALL_PROJECTS_SCOPE),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },
   (table) => [
-    unique("TeamMemberPermission_teamId_userId_resource_action_key").on(
+    unique("TeamMemberPermission_teamId_userId_resource_action_projectId_key").on(
       table.teamId,
       table.userId,
       table.resource,
       table.action,
+      table.projectId,
     ),
     index("TeamMemberPermission_teamId_idx").on(table.teamId),
     index("TeamMemberPermission_teamId_userId_idx").on(table.teamId, table.userId),
+    index("TeamMemberPermission_projectId_idx").on(table.projectId),
   ],
 );
 

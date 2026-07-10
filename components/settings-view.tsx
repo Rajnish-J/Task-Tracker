@@ -191,8 +191,8 @@ export function SettingsView({
   ];
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-y-auto">
-      <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <SidebarTrigger className="-ml-1 text-foreground" />
@@ -209,7 +209,7 @@ export function SettingsView({
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 p-4 md:p-6">
+      <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto p-4 md:p-6">
         {/* Profile header */}
         <Card>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
