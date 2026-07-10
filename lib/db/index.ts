@@ -17,7 +17,6 @@ neonConfig.webSocketConstructor = ws;
 neonConfig.poolQueryViaFetch = true;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __dbPool: Pool | undefined;
 }
 

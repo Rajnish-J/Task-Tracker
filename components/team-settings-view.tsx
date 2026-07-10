@@ -16,6 +16,7 @@ import {
 import { AccentSelect } from "@/components/accent-select";
 import { MemberSearch } from "@/components/member-search";
 import { SubmitButton } from "@/components/submit-button";
+import { TeamManagementView } from "@/components/team-management-view";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,15 +37,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { TEAM_COLOR_OPTIONS } from "@/lib/constants";
 import type { TeamDetail } from "@/lib/team-data";
-
-function initials(name?: string | null, email?: string | null) {
-  const source = name?.trim() || email?.trim() || "?";
-  const parts = source.split(/\s+/).filter(Boolean);
-  return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : source.slice(0, 2)).toUpperCase();
-}
+import { initials } from "@/lib/utils/initials";
 
 // Team management: details (owner-editable), members (invite / remove /
 // leave), pending invitations, and the owner's danger zone.
@@ -95,7 +92,14 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
+      <Tabs defaultValue="general" className="mx-auto w-full max-w-3xl p-4 md:p-6">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          {isOwner ? <TabsTrigger value="management">Management</TabsTrigger> : null}
+        </TabsList>
+
+        <TabsContent value="general">
+      <div className="flex flex-col gap-6">
         {/* Team details */}
         <Card>
           <CardHeader>
@@ -283,6 +287,14 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
           </Card>
         ) : null}
       </div>
+        </TabsContent>
+
+        {isOwner ? (
+          <TabsContent value="management">
+            <TeamManagementView team={team} />
+          </TabsContent>
+        ) : null}
+      </Tabs>
 
       {/* Remove member confirm */}
       <Dialog open={Boolean(removeTarget)} onOpenChange={(open) => !open && setRemoveTarget(null)}>

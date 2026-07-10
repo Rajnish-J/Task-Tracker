@@ -178,6 +178,40 @@ export const teamInvitations = pgTable(
   ],
 );
 
+export const RESOURCE_VALUES = ["project", "section", "column", "task"] as const;
+export type Resource = (typeof RESOURCE_VALUES)[number];
+
+export const ACTION_VALUES = ["create", "update", "delete"] as const;
+export type Action = (typeof ACTION_VALUES)[number];
+
+export const teamMemberPermissions = pgTable(
+  "TeamMemberPermission",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    teamId: text("teamId")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    resource: text("resource").notNull(), // Resource
+    action: text("action").notNull(), // Action
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("TeamMemberPermission_teamId_userId_resource_action_key").on(
+      table.teamId,
+      table.userId,
+      table.resource,
+      table.action,
+    ),
+    index("TeamMemberPermission_teamId_idx").on(table.teamId),
+    index("TeamMemberPermission_teamId_userId_idx").on(table.teamId, table.userId),
+  ],
+);
+
 export const notifications = pgTable(
   "Notification",
   {
@@ -542,6 +576,17 @@ export const teamInvitationsRelations = relations(teamInvitations, ({ one }) => 
   }),
   invitee: one(user, {
     fields: [teamInvitations.inviteeId],
+    references: [user.id],
+  }),
+}));
+
+export const teamMemberPermissionsRelations = relations(teamMemberPermissions, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMemberPermissions.teamId],
+    references: [teams.id],
+  }),
+  user: one(user, {
+    fields: [teamMemberPermissions.userId],
     references: [user.id],
   }),
 }));

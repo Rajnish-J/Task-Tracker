@@ -11,6 +11,9 @@ export function ModeToggle() {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
+    // Deliberate mount flag to avoid a hydration mismatch between the SSR
+    // default and the client-resolved theme (same pattern as theme-provider.tsx).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

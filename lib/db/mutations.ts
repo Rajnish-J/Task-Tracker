@@ -1,10 +1,22 @@
 import { and, asc, desc, eq, ilike, inArray, isNull } from "drizzle-orm";
+import { cache } from "react";
 import { z } from "zod";
 
 import { COLUMN_COLOR_OPTIONS, DEFAULT_COLUMNS, TAG_COLOR_OPTIONS } from "@/lib/constants";
 import { statusKeyFromColumnName } from "@/lib/data";
 import { db } from "@/lib/db";
-import { columns, PRIORITY_VALUES, projects, sections, storyTasks, tags, tasks } from "@/lib/db/schema";
+import { hasPermission } from "@/lib/db/permissions";
+import {
+  type Action,
+  columns,
+  PRIORITY_VALUES,
+  projects,
+  type Resource,
+  sections,
+  storyTasks,
+  tags,
+  tasks,
+} from "@/lib/db/schema";
 import { slugify } from "@/lib/utils/slugify";
 
 // ---------------------------------------------------------------------------
@@ -68,11 +80,20 @@ function tagScope(space: MutationSpace) {
     : and(eq(tags.userId, space.uid), isNull(tags.teamId));
 }
 
-// In team space, structural mutations (projects/sections) are owner-only; any
-// member may work with columns/cards/story tasks. Personal space has no roles.
-export function assertSpaceRole(space: MutationSpace, role: "owner") {
-  if (space.teamId && space.role !== role) {
-    throw new MutationError("Only the team owner can do this.", "forbidden");
+// Request-scoped memo so a core that happens to check the same tuple twice in
+// one request doesn't issue duplicate queries (mirrors getSpaceContext's use
+// of React's cache() in lib/space.ts).
+const cachedHasPermission = cache(hasPermission);
+
+// ABAC gate for project/section/column/task mutations. Personal space has no
+// ABAC; team owners are always fully permitted; team members need an explicit
+// grant (see lib/db/permissions.ts) for the given (resource, action) pair.
+export async function assertSpacePermission(space: MutationSpace, resource: Resource, action: Action) {
+  if (!space.teamId) return;
+  if (space.role === "owner") return;
+  const granted = await cachedHasPermission(space.teamId, space.uid, resource, action);
+  if (!granted) {
+    throw new MutationError(`You don't have permission to ${action} ${resource}s in this team.`, "forbidden");
   }
 }
 
@@ -349,7 +370,7 @@ export async function createProjectCore(
   input: z.input<typeof createProjectSchema>,
   space: MutationSpace,
 ) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "project", "create");
   const values = createProjectSchema.parse(input);
   if (values.sectionId) {
     await assertSectionOwned(values.sectionId, space);
@@ -393,7 +414,7 @@ export async function updateProjectCore(
   input: z.input<typeof updateProjectSchema>,
   space: MutationSpace,
 ) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "project", "update");
   const values = updateProjectSchema.parse(input);
   await assertProjectOwned(values.projectId, space);
   if (values.sectionId) {
@@ -431,7 +452,7 @@ export async function updateProjectCore(
 // Delete a project and its entire board. Columns, tasks and story tasks are
 // removed by the cascade FKs in the schema.
 export async function deleteProjectCore(projectId: string, space: MutationSpace) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "project", "delete");
   await assertProjectOwned(projectId, space);
   await db.delete(projects).where(and(eq(projects.id, projectId), projectScope(space)));
 }
@@ -441,7 +462,7 @@ export async function updateProjectSectionCore(
   input: { projectId: string; sectionId: string | null },
   space: MutationSpace,
 ) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "project", "update");
   await assertProjectOwned(input.projectId, space);
   if (input.sectionId) {
     await assertSectionOwned(input.sectionId, space);
@@ -457,7 +478,7 @@ export async function reorderProjectsCore(
   input: z.input<typeof reorderProjectsSchema>,
   space: MutationSpace,
 ) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "project", "update");
   const { orderedIds } = reorderProjectsSchema.parse(input);
 
   // Every id must be one of this space's projects, or the reorder is rejected
@@ -500,6 +521,7 @@ export async function createColumnCore(
 ) {
   const values = createColumnSchema.parse(input);
   await assertProjectOwned(values.projectId, space);
+  await assertSpacePermission(space, "column", "create");
 
   const [lastColumn] = await db
     .select({ position: columns.position })
@@ -528,6 +550,7 @@ export async function updateColumnCore(
   const values = updateColumnSchema.parse(input);
   await assertProjectOwned(values.projectId, space);
   await assertColumnInProject(values.columnId, values.projectId);
+  await assertSpacePermission(space, "column", "update");
 
   await db
     .update(columns)
@@ -543,6 +566,7 @@ export async function deleteColumnCore(
 ) {
   await assertProjectOwned(input.projectId, space);
   await assertColumnInProject(input.columnId, input.projectId);
+  await assertSpacePermission(space, "column", "delete");
 
   const projectColumns = await db
     .select({ id: columns.id, position: columns.position })
@@ -609,6 +633,7 @@ export async function createTaskCore(
   const values = createTaskSchema.parse(input);
   await assertProjectOwned(values.projectId, space);
   await assertColumnInProject(values.columnId, values.projectId);
+  await assertSpacePermission(space, "task", "create");
 
   const tagId = await resolveTagId(values, space);
 
@@ -646,6 +671,7 @@ export async function updateTaskCore(
   await assertProjectOwned(values.projectId, space);
   await assertColumnInProject(values.columnId, values.projectId);
   const existingTask = await assertTaskInProject(values.taskId, values.projectId);
+  await assertSpacePermission(space, "task", "update");
 
   const tagId = await resolveTagId(values, space);
   const movedColumn = existingTask.columnId !== values.columnId;
@@ -702,6 +728,7 @@ export async function deleteTaskCore(
 ) {
   await assertProjectOwned(input.projectId, space);
   const task = await assertTaskInProject(input.taskId, input.projectId);
+  await assertSpacePermission(space, "task", "delete");
 
   await db.transaction(async (tx) => {
     await tx.delete(tasks).where(eq(tasks.id, input.taskId));
@@ -733,6 +760,7 @@ export async function moveTaskCore(
   // The destination column must live in the same owned project, so a move can
   // never relocate a card into another user's board.
   await assertColumnInProject(values.toColumnId, values.projectId);
+  await assertSpacePermission(space, "task", "update");
 
   await db.transaction(async (tx) => {
     const task = await tx.query.tasks.findFirst({
@@ -810,7 +838,7 @@ export async function createSectionCore(
   input: z.input<typeof createSectionSchema>,
   space: MutationSpace,
 ) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "section", "create");
   const values = createSectionSchema.parse(input);
   if (values.parentId) {
     await assertSectionOwned(values.parentId, space);
@@ -846,7 +874,7 @@ export async function updateSectionCore(
   input: z.input<typeof updateSectionSchema>,
   space: MutationSpace,
 ) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "section", "update");
   const values = updateSectionSchema.parse(input);
   await assertSectionOwned(values.sectionId, space);
 
@@ -910,7 +938,7 @@ export async function updateSectionCore(
 // Deleting a section relies on `onDelete: "set null"`: child sections are
 // promoted to the top level and member projects are ungrouped — no tasks lost.
 export async function deleteSectionCore(sectionId: string, space: MutationSpace) {
-  assertSpaceRole(space, "owner");
+  await assertSpacePermission(space, "section", "delete");
   await assertSectionOwned(sectionId, space);
   await db.delete(sections).where(and(eq(sections.id, sectionId), sectionScope(space)));
 }

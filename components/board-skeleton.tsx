@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // being applied. Mirrors the real board layout: a horizontal row of columns,
 // each holding a few card-shaped skeletons.
 export function BoardSkeleton({
-  columns = 4,
+  columns = 3,
   cardsPerColumn = 3,
 }: {
   columns?: number;

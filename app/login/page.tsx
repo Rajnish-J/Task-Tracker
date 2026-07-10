@@ -5,22 +5,12 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Eye,
-  EyeOff,
-  LayoutDashboard,
-  Loader2,
-  Lock,
-  Mail,
-  MoonStar,
-  SunMedium,
-  User,
-} from "lucide-react";
+import { Eye, EyeOff, LayoutDashboard, Loader2, Lock, Mail, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/theme-provider";
-import SideRays from "@/components/side-rays";
+import Galaxy from "@/components/galaxy";
 import { signIn, signUp } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { signInSchema, signUpSchema, type SignUpValues } from "./schema";
@@ -47,23 +37,6 @@ function GoogleIcon() {
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
       />
     </svg>
-  );
-}
-
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  // Icons switch via CSS `dark:` variants (which track the `.dark` class on
-  // <html>), so this stays hydration-safe without a mounted flag/effect.
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label="Toggle theme"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-    >
-      <SunMedium className="dark:hidden" />
-      <MoonStar className="hidden dark:block" />
-    </Button>
   );
 }
 
@@ -114,6 +87,16 @@ function Field({
 function LoginContent() {
   const searchParams = useSearchParams();
   const callbackURL = searchParams.get("redirect") || "/";
+  const { resolvedTheme } = useTheme();
+
+  // The login page is dark-mode only, independent of the app-wide theme
+  // preference; restore whatever theme was resolved elsewhere on unmount.
+  React.useEffect(() => {
+    document.documentElement.classList.add("dark");
+    return () => {
+      document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
+    };
+  }, [resolvedTheme]);
 
   const [mode, setMode] = React.useState<Mode>("signin");
   const [showPassword, setShowPassword] = React.useState(false);
@@ -188,21 +171,7 @@ function LoginContent() {
   return (
     <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-12 dark:bg-[#05060a]">
       <div className="absolute inset-0 z-0 opacity-40 dark:opacity-100">
-        <SideRays
-          speed={2.5}
-          rayColor1="#EAB308"
-          rayColor2="#96c8ff"
-          intensity={2}
-          spread={2}
-          origin="top-right"
-          saturation={1.5}
-          blend={0.75}
-          falloff={1.6}
-        />
-      </div>
-
-      <div className="absolute top-4 right-4 z-20">
-        <ThemeToggle />
+        <Galaxy hueShift={40} saturation={0.6} glowIntensity={0.35} twinkleIntensity={0.4} />
       </div>
 
       {/* Centered login card */}

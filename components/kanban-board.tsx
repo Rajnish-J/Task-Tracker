@@ -55,7 +55,9 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
   // Keep a ref of the live board so drag handlers can read the latest state
   // synchronously when computing the persisted position.
   const boardRef = React.useRef(board);
-  boardRef.current = board;
+  React.useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
 
   // Re-sync with server data whenever the board's shape/order changes (e.g.
   // after a revalidate from creating, editing, or moving a task) — including the

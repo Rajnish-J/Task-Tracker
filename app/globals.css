@@ -49,7 +49,7 @@
 }
 
 :root {
-  --font-sans: var(--font-inter), "Segoe UI", Arial, sans-serif;
+  --font-sans: var(--font-ubuntu), "Segoe UI", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

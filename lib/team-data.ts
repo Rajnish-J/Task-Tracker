@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { getTeamPermissionGrid } from "@/lib/db/permissions";
 import { isExemptFromTeamLimit } from "@/lib/db/team-mutations";
 import { TEAM_CREATION_LIMIT } from "@/lib/constants";
 import { notifications, teamMembers, teams } from "@/lib/db/schema";
@@ -102,6 +103,19 @@ export async function getTeam(teamId: string) {
   });
   if (!team) notFound();
 
+  // Only the owner edits permissions, so the grid is only fetched for them —
+  // same role-gating pattern as pendingInvitations below. Serialized as plain
+  // arrays (Map/Set don't cross the RSC boundary into the client component).
+  const memberPermissions =
+    role === "owner"
+      ? Object.fromEntries(
+          [...(await getTeamPermissionGrid(teamId)).entries()].map(([userId, set]) => [
+            userId,
+            [...set],
+          ]),
+        )
+      : {};
+
   return {
     id: team.id,
     name: team.name,
@@ -110,6 +124,7 @@ export async function getTeam(teamId: string) {
     createdAt: team.createdAt,
     role,
     currentUserId: uid,
+    memberPermissions,
     members: team.members
       .map((member) => ({
         id: member.id,

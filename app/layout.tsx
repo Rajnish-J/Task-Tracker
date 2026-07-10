@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Ubuntu } from "next/font/google";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "./globals.css";
 
-const inter = Inter({
+const ubuntu = Ubuntu({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-ubuntu",
   display: "swap",
 });
 
@@ -25,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full antialiased ${inter.variable}`}
+      className={`h-full antialiased ${ubuntu.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
