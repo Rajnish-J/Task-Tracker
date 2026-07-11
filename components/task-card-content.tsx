@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { createStoryTaskOnBoard, deleteTask, toggleStoryTaskOnBoard } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField, useSpace } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useTaskDefaults } from "@/hooks/use-task-defaults";
 
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -60,6 +62,7 @@ export type TaskCardData = {
     id: string;
     title: string;
     priority: Priority;
+    dueDate: Date | null;
     isDone: boolean;
     tag?: Tag | null;
   }[];
@@ -87,6 +90,7 @@ export function TaskCardContent({
 }) {
   const router = useRouter();
   const { basePath } = useSpace();
+  const { defaultPriority, defaultTagId } = useTaskDefaults();
   const [tasksOpen, setTasksOpen] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -112,7 +116,7 @@ export function TaskCardContent({
                 onPointerDown={stopCardEvents}
                 onClick={(event) => {
                   stopCardEvents(event);
-                  router.push(`${basePath}/projects/${projectId}?task=${task.id}`);
+                  router.push(`${basePath}/projects/${projectId}?task=${task.id}&edit=1`);
                 }}
                 className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -177,8 +181,10 @@ export function TaskCardContent({
               {task.storyTasks.map((storyTask) => (
                 <li key={storyTask.id} className="flex items-center gap-2">
                   {projectId ? (
-                    <form
+                    <ActionForm
                       action={toggleStoryTaskOnBoard}
+                      successMessage={storyTask.isDone ? "Task marked as not done" : "Task marked as done"}
+                      errorMessage="Couldn't update task. Please try again."
                       onClick={stopCardEvents}
                       onPointerDown={stopCardEvents}
                       className="contents"
@@ -200,7 +206,7 @@ export function TaskCardContent({
                       >
                         {storyTask.isDone ? <Check className="size-3" /> : null}
                       </button>
-                    </form>
+                    </ActionForm>
                   ) : (
                     <span
                       className={cn(
@@ -215,22 +221,35 @@ export function TaskCardContent({
                   )}
                   <span
                     className={cn(
-                      "line-clamp-1 text-xs",
+                      "min-w-0 flex-1 truncate text-xs",
                       storyTask.isDone && "text-muted-foreground line-through",
                     )}
                   >
                     {storyTask.title}
                   </span>
-                  {storyTask.tag ? (
-                    <TagBadge tag={storyTask.tag} withIcon={false} className="ml-auto text-[10px]" />
+                  {storyTask.dueDate || storyTask.tag ? (
+                    <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                      {storyTask.dueDate ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <CalendarDays className="size-3" />
+                          {format(storyTask.dueDate, "MMM d")}
+                        </span>
+                      ) : null}
+                      {storyTask.tag ? (
+                        <TagBadge tag={storyTask.tag} withIcon={false} className="text-[10px]" />
+                      ) : null}
+                    </span>
                   ) : null}
                 </li>
               ))}
             </ul>
             {projectId ? (
               adding ? (
-                <form
+                <ActionForm
                   action={createStoryTaskOnBoard}
+                  successMessage="Task added"
+                  errorMessage="Couldn't add task. Please try again."
+                  onSuccess={() => setAdding(false)}
                   onClick={stopCardEvents}
                   onPointerDown={stopCardEvents}
                   className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/30 p-2"
@@ -254,7 +273,7 @@ export function TaskCardContent({
                     />
                     <Select
                       name="priority"
-                      defaultValue="MEDIUM"
+                      defaultValue={defaultPriority}
                       items={PRIORITY_OPTIONS.map((option) => ({
                         label: option.label,
                         value: option.value,
@@ -276,7 +295,14 @@ export function TaskCardContent({
                       </SelectContent>
                     </Select>
                   </div>
-                  <TagPicker idPrefix={`board-story-tag-${task.id}`} />
+                  <Input
+                    name="dueDate"
+                    type="date"
+                    aria-label="New task due date"
+                    className="h-8 text-xs"
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
+                  <TagPicker idPrefix={`board-story-tag-${task.id}`} defaultTagId={defaultTagId} />
                   <div className="flex items-center justify-end gap-2">
                     <Button
                       type="button"
@@ -295,7 +321,7 @@ export function TaskCardContent({
                       Add task
                     </SubmitButton>
                   </div>
-                </form>
+                </ActionForm>
               ) : (
                 <button
                   type="button"
@@ -363,14 +389,14 @@ export function TaskCardContent({
             >
               Cancel
             </Button>
-            <form action={deleteTask}>
+            <ActionForm action={deleteTask} errorMessage="Couldn't delete task. Please try again.">
               <SpaceField />
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="taskId" value={task.id} />
               <SubmitButton variant="destructive" pendingLabel="Deleting...">
                 Delete task
               </SubmitButton>
-            </form>
+            </ActionForm>
           </DialogFooter>
         </DialogContent>
       </Dialog>

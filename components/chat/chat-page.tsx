@@ -1,19 +1,23 @@
 "use client";
 
 import * as React from "react";
+import { PanelLeftIcon } from "lucide-react";
 
 import { ChatHero } from "@/components/chat/chat-hero";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ToolsPopover } from "@/components/chat/tools-popover";
 import { useChat } from "@/components/chat/use-chat";
+import { Button } from "@/components/ui/button";
 import { TOOL_CATALOG } from "@/lib/ai/tool-catalog";
 
 const ALL_TOOL_NAMES = TOOL_CATALOG.flatMap((group) => group.tools.map((tool) => tool.name));
 
-// The /chat page: conversation rail + (hero when empty | conversation panel).
+// The /chat page: message panel (hero when empty | conversation panel),
+// with past conversations in a full-height drawer opened via the top-right button.
 export function ChatPage() {
   const [listRefreshKey, setListRefreshKey] = React.useState(0);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const chat = useChat({
     onConversationCreated: () => setListRefreshKey((key) => key + 1),
   });
@@ -50,27 +54,36 @@ export function ChatPage() {
   const showHero = chat.messages.length === 0 && !chat.isLoading && !chat.conversationId;
 
   return (
-    <div className="flex h-svh min-w-0 flex-1">
+    <div className="flex h-full min-w-0 flex-1 flex-col">
+      <Button
+        variant="secondary"
+        size="icon"
+        aria-label="Conversation history"
+        className="fixed right-4 top-20 z-40 rounded-full shadow-md"
+        onClick={() => setHistoryOpen(true)}
+      >
+        <PanelLeftIcon className="size-4" />
+      </Button>
       <ConversationList
         activeId={chat.conversationId}
         refreshKey={listRefreshKey}
         onSelect={(id) => chat.loadConversation(id)}
         onNew={() => chat.reset()}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {showHero ? (
-          <ChatHero onSubmit={send} composerAccessory={toolsPopover} />
-        ) : (
-          <ChatPanel
-            messages={chat.messages}
-            isStreaming={chat.isStreaming}
-            isLoading={chat.isLoading}
-            error={chat.error}
-            onSend={send}
-            composerAccessory={toolsPopover}
-          />
-        )}
-      </div>
+      {showHero ? (
+        <ChatHero onSubmit={send} composerAccessory={toolsPopover} />
+      ) : (
+        <ChatPanel
+          messages={chat.messages}
+          isStreaming={chat.isStreaming}
+          isLoading={chat.isLoading}
+          error={chat.error}
+          onSend={send}
+          composerAccessory={toolsPopover}
+        />
+      )}
     </div>
   );
 }

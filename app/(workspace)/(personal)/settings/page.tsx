@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
+import { getTags } from "@/lib/data";
 import { getNotifications, getPendingInvitationStatuses } from "@/lib/team-data";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +23,11 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  const [sessions, accounts, notifications] = await Promise.all([
+  const [sessions, accounts, notifications, tags] = await Promise.all([
     auth.api.listSessions({ headers: hdrs }).catch(() => []),
     auth.api.listUserAccounts({ headers: hdrs }).catch(() => []),
     getNotifications(),
+    getTags(),
   ]);
   const invitationIds = notifications
     .map((row) => row.payload.invitationId)
@@ -69,6 +71,7 @@ export default async function SettingsPage() {
         provider: a.providerId,
         createdAt: a.createdAt,
       }))}
+      tags={tags}
       notificationsSlot={notificationsSlot}
     />
   );

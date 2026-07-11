@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Check, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { createStoryTask, deleteStoryTask, toggleStoryTask, updateStoryTask } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useTaskDefaults } from "@/hooks/use-task-defaults";
 
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -104,7 +106,11 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
               key={task.id}
               className="flex items-start gap-2 rounded-lg border border-border/60 bg-background/60 p-3"
             >
-              <form action={toggleStoryTask} className="pt-0.5">
+              <ActionForm
+                action={toggleStoryTask}
+                errorMessage="Couldn't update task. Please try again."
+                className="pt-0.5"
+              >
                 <SpaceField />
                 <input type="hidden" name="projectId" value={projectId} />
                 <input type="hidden" name="taskId" value={storyId} />
@@ -122,7 +128,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
                 >
                   {task.isDone ? <Check className="size-3.5" /> : null}
                 </button>
-              </form>
+              </ActionForm>
 
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex items-center justify-between gap-2">
@@ -158,7 +164,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
                 >
                   <Pencil className="size-3.5" />
                 </Button>
-                <form action={deleteStoryTask}>
+                <ActionForm action={deleteStoryTask} errorMessage="Couldn't delete task. Please try again.">
                   <SpaceField />
                   <input type="hidden" name="projectId" value={projectId} />
                   <input type="hidden" name="taskId" value={storyId} />
@@ -172,7 +178,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
                   >
                     <Trash2 className="size-3.5" />
                   </SubmitButton>
-                </form>
+                </ActionForm>
               </div>
             </li>
           ),
@@ -206,12 +212,17 @@ function StoryTaskCreateForm({
   storyId: string;
   onDone: () => void;
 }) {
+  const { defaultPriority, defaultTagId } = useTaskDefaults();
   return (
-    <form action={createStoryTask} className="space-y-3">
+    <ActionForm
+      action={createStoryTask}
+      errorMessage="Couldn't add task. Please try again."
+      className="space-y-3"
+    >
       <SpaceField />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="taskId" value={storyId} />
-      <StoryTaskFields />
+      <StoryTaskFields defaultPriority={defaultPriority} defaultTagId={defaultTagId} />
       <div className="flex items-center justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>
           Cancel
@@ -220,7 +231,7 @@ function StoryTaskCreateForm({
           Add task
         </SubmitButton>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -236,7 +247,11 @@ function StoryTaskEditForm({
   onDone: () => void;
 }) {
   return (
-    <form action={updateStoryTask} className="space-y-3">
+    <ActionForm
+      action={updateStoryTask}
+      errorMessage="Couldn't save task. Please try again."
+      className="space-y-3"
+    >
       <SpaceField />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="taskId" value={storyId} />
@@ -251,11 +266,21 @@ function StoryTaskEditForm({
           Save
         </SubmitButton>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
-function StoryTaskFields({ task }: { task?: StoryTask }) {
+function StoryTaskFields({
+  task,
+  defaultPriority,
+  defaultTagId,
+}: {
+  task?: StoryTask;
+  // Only meaningful for the create form (no `task`) — the personal "task
+  // defaults" preference, not applied when editing an existing story task.
+  defaultPriority?: string;
+  defaultTagId?: string | null;
+}) {
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
@@ -269,7 +294,7 @@ function StoryTaskFields({ task }: { task?: StoryTask }) {
         />
         <Select
           name="priority"
-          defaultValue={task?.priority ?? "MEDIUM"}
+          defaultValue={task?.priority ?? defaultPriority ?? "MEDIUM"}
           items={PRIORITY_OPTIONS.map((option) => ({
             label: option.label,
             value: option.value,
@@ -301,7 +326,11 @@ function StoryTaskFields({ task }: { task?: StoryTask }) {
         defaultValue={task?.dueDate ? format(task.dueDate, "yyyy-MM-dd") : ""}
         aria-label="Task due date"
       />
-      <TagPicker defaultTag={task?.tag ?? null} idPrefix={`story-tag-${task?.id ?? "new"}`} />
+      <TagPicker
+        defaultTag={task?.tag ?? null}
+        defaultTagId={defaultTagId}
+        idPrefix={`story-tag-${task?.id ?? "new"}`}
+      />
     </>
   );
 }

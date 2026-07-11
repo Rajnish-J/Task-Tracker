@@ -42,6 +42,32 @@ export const TEAM_COLOR_OPTIONS = COLUMN_COLOR_OPTIONS;
 
 export const TEAM_COLOR_META = COLUMN_ACCENT_META;
 
+// Common, broadly-applicable lucide-react icon names a team can pick as its
+// identity icon. Keys only here (plain data); the icon-key -> component map
+// and label metadata live in lib/team-icons.tsx since they need JSX imports.
+export const TEAM_ICON_OPTIONS = [
+  "Users",
+  "Rocket",
+  "Briefcase",
+  "Target",
+  "Star",
+  "Flag",
+  "Layers",
+  "Zap",
+  "Globe",
+  "Shield",
+  "Palette",
+  "Code",
+  "Megaphone",
+  "Compass",
+  "Lightbulb",
+  "Puzzle",
+  "Heart",
+  "Trophy",
+  "Building2",
+  "Sparkles",
+] as const;
+
 // A user may create at most this many teams (membership in other people's
 // teams doesn't count; deleting a team frees the slot).
 export const TEAM_CREATION_LIMIT = 2;

@@ -1,7 +1,12 @@
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 
-import { TEAM_COLOR_OPTIONS, TEAM_CREATION_LIMIT, TEAM_LIMIT_EXEMPT_EMAILS } from "@/lib/constants";
+import {
+  TEAM_COLOR_OPTIONS,
+  TEAM_CREATION_LIMIT,
+  TEAM_ICON_OPTIONS,
+  TEAM_LIMIT_EXEMPT_EMAILS,
+} from "@/lib/constants";
 import { db } from "@/lib/db";
 import { MutationError } from "@/lib/db/mutations";
 import {
@@ -25,6 +30,7 @@ export const createTeamSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   color: z.string().optional(),
+  icon: z.string().optional(),
   inviteeIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
@@ -33,6 +39,7 @@ export const updateTeamSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   color: z.string().optional(),
+  icon: z.string().optional(),
 });
 
 type Actor = { id: string; email: string; name: string };
@@ -41,6 +48,14 @@ function normalizeColor(color?: string) {
   return (TEAM_COLOR_OPTIONS as readonly string[]).includes(color ?? "")
     ? (color as string)
     : null;
+}
+
+// Unlike color, an icon should always render something, so an invalid/missing
+// value falls back to the default icon rather than null.
+function normalizeIcon(icon?: string) {
+  return (TEAM_ICON_OPTIONS as readonly string[]).includes(icon ?? "")
+    ? (icon as string)
+    : TEAM_ICON_OPTIONS[0];
 }
 
 // Membership row for (teamId, uid), or a 404-shaped MutationError — a
@@ -116,6 +131,7 @@ export async function createTeamCore(
         name: values.name,
         description: values.description || null,
         color: normalizeColor(values.color),
+        icon: normalizeIcon(values.icon),
         creatorId: actor.id,
       })
       .returning({ id: teams.id, name: teams.name });
@@ -157,6 +173,7 @@ export async function updateTeamCore(input: z.input<typeof updateTeamSchema>, ui
       name: values.name,
       description: values.description || null,
       color: normalizeColor(values.color),
+      icon: normalizeIcon(values.icon),
     })
     .where(eq(teams.id, values.teamId));
 

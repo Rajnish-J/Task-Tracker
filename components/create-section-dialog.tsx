@@ -47,10 +47,9 @@ export function CreateSectionDialog({ trigger, sections, defaultParentId }: Crea
           </DialogDescription>
         </DialogHeader>
         <SectionForm
-          action={async (formData) => {
-            await createSection(formData);
-            setOpen(false);
-          }}
+          action={createSection}
+          onSuccess={() => setOpen(false)}
+          errorMessage="Couldn't create section. Please try again."
           sections={sections}
           defaultParentId={defaultParentId}
           idPrefix="create-section"

@@ -52,6 +52,7 @@ export function CreateProjectDialog({ trigger, sections, defaultSectionId }: Cre
           idPrefix="project"
           submitLabel="Create project"
           pendingLabel="Creating project..."
+          errorMessage="Couldn't create project. Please try again."
         />
       </DialogContent>
     </Dialog>

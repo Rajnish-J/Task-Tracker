@@ -18,6 +18,7 @@ import {
   deleteProjectCore,
   deleteSectionCore,
   deleteStoryTaskCore,
+  deleteTagCore,
   deleteTaskCore,
   moveTaskCore,
   moveTaskSchema,
@@ -479,4 +480,18 @@ export async function createTag(input: z.infer<typeof createTagSchema>, teamId?:
 // without threading the list through every mount point as props.
 export async function getTagsAction(teamId?: string) {
   return getTags(teamId);
+}
+
+const deleteTagSchema = z.object({
+  tagId: z.string().min(1),
+});
+
+// Used by the settings pages' "Tags" card. Detaches the tag from anything it
+// was applied to (ON DELETE SET NULL) rather than deleting those items.
+export async function deleteTag(formData: FormData) {
+  const values = deleteTagSchema.parse({ tagId: formData.get("tagId") });
+  const { space, base } = await resolveFormSpace(formData);
+  await run(deleteTagCore(values.tagId, space));
+
+  revalidatePath(`${base}/settings`);
 }

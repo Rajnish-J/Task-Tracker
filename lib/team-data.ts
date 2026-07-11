@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth-session";
+import { getTags } from "@/lib/data";
 import { db } from "@/lib/db";
 import { getTeamPermissionGrid } from "@/lib/db/permissions";
 import { isExemptFromTeamLimit } from "@/lib/db/team-mutations";
@@ -18,6 +19,7 @@ export type UserTeam = {
   id: string;
   name: string;
   color: string | null;
+  icon: string | null;
   role: "owner" | "member";
 };
 
@@ -27,7 +29,7 @@ export async function getUserTeams(): Promise<UserTeam[]> {
   const rows = await db.query.teamMembers.findMany({
     where: eq(teamMembers.userId, uid),
     columns: { role: true },
-    with: { team: { columns: { id: true, name: true, color: true } } },
+    with: { team: { columns: { id: true, name: true, color: true, icon: true } } },
   });
   return rows
     .filter((row) => row.team)
@@ -35,6 +37,7 @@ export async function getUserTeams(): Promise<UserTeam[]> {
       id: row.team.id,
       name: row.team.name,
       color: row.team.color,
+      icon: row.team.icon,
       role: row.role as "owner" | "member",
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -49,7 +52,14 @@ export async function getTeamsOverview() {
       columns: { role: true },
       with: {
         team: {
-          columns: { id: true, name: true, description: true, color: true, createdAt: true },
+          columns: {
+            id: true,
+            name: true,
+            description: true,
+            color: true,
+            icon: true,
+            createdAt: true,
+          },
           with: { members: { columns: { id: true } } },
         },
       },
@@ -64,6 +74,7 @@ export async function getTeamsOverview() {
       name: row.team.name,
       description: row.team.description,
       color: row.team.color,
+      icon: row.team.icon,
       createdAt: row.team.createdAt,
       role: row.role as "owner" | "member",
       memberCount: row.team.members.length,
@@ -115,7 +126,14 @@ export async function getTeam(teamId: string) {
 
   const team = await db.query.teams.findFirst({
     where: eq(teams.id, teamId),
-    columns: { id: true, name: true, description: true, color: true, createdAt: true },
+    columns: {
+      id: true,
+      name: true,
+      description: true,
+      color: true,
+      icon: true,
+      createdAt: true,
+    },
     with: {
       members: {
         columns: { id: true, role: true, createdAt: true },
@@ -136,22 +154,26 @@ export async function getTeam(teamId: string) {
   // userId -> project scope ("*" or a projectId) -> PermissionKey[].
   const emptyProjects: Awaited<ReturnType<typeof loadTeamProjects>> = [];
   const emptySections: Awaited<ReturnType<typeof loadTeamSections>> = [];
-  const [memberPermissions, teamProjects, teamSections] =
-    role === "owner"
-      ? await Promise.all([loadMemberPermissions(teamId), loadTeamProjects(teamId), loadTeamSections(teamId)])
-      : [{} as Record<string, Record<string, string[]>>, emptyProjects, emptySections];
+  const [memberPermissions, teamProjects, teamSections, tags] = await Promise.all([
+    role === "owner" ? loadMemberPermissions(teamId) : Promise.resolve({} as Record<string, Record<string, string[]>>),
+    role === "owner" ? loadTeamProjects(teamId) : Promise.resolve(emptyProjects),
+    role === "owner" ? loadTeamSections(teamId) : Promise.resolve(emptySections),
+    getTags(teamId),
+  ]);
 
   return {
     id: team.id,
     name: team.name,
     description: team.description,
     color: team.color,
+    icon: team.icon,
     createdAt: team.createdAt,
     role,
     currentUserId: uid,
     memberPermissions,
     projects: teamProjects,
     sections: teamSections,
+    tags,
     members: team.members
       .map((member) => ({
         id: member.id,

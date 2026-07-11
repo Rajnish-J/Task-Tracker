@@ -4,6 +4,7 @@ import * as React from "react";
 import { Plus } from "lucide-react";
 
 import { createTask } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
@@ -26,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useTaskDefaults } from "@/hooks/use-task-defaults";
 
 type ColumnOption = {
   id: string;
@@ -45,9 +47,13 @@ export function CreateTaskDialog({
   columns,
   trigger,
 }: CreateTaskDialogProps) {
+  const { defaultPriority, defaultTagId } = useTaskDefaults();
   const [open, setOpen] = React.useState(false);
   const [selectedColumn, setSelectedColumn] = React.useState<string>(columnId ?? columns[0]?.id ?? "");
-  const [priority, setPriority] = React.useState<string>("MEDIUM");
+  // null until the user picks one, so it falls back to the (possibly just-
+  // loaded) personal default instead of a fixed "MEDIUM" — no effect needed.
+  const [priorityOverride, setPriorityOverride] = React.useState<string | null>(null);
+  const priority = priorityOverride ?? defaultPriority;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -68,7 +74,11 @@ export function CreateTaskDialog({
             Add a task to this project and place it in the right Kanban column.
           </DialogDescription>
         </DialogHeader>
-        <form action={createTask} className="space-y-4">
+        <ActionForm
+          action={createTask}
+          errorMessage="Couldn't create task. Please try again."
+          className="space-y-4"
+        >
           <SpaceField />
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="columnId" value={selectedColumn} />
@@ -116,7 +126,10 @@ export function CreateTaskDialog({
               <label className="text-sm font-medium">
                 Priority <span className="text-destructive">*</span>
               </label>
-              <Select value={priority} onValueChange={(value) => value && setPriority(value)}>
+              <Select
+                value={priority}
+                onValueChange={(value) => value && setPriorityOverride(value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
@@ -153,11 +166,11 @@ export function CreateTaskDialog({
             </label>
             <Input id="task-due-date" name="dueDate" type="date" />
           </div>
-          <TagPicker idPrefix="task-tag" />
+          <TagPicker idPrefix="task-tag" defaultTagId={defaultTagId} />
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Creating task...">Create task</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </DialogContent>
     </Dialog>
   );

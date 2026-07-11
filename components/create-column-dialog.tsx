@@ -4,6 +4,7 @@ import * as React from "react";
 import { Columns3, Plus } from "lucide-react";
 
 import { createColumn } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { COLUMN_COLOR_OPTIONS } from "@/lib/constants";
@@ -40,7 +41,11 @@ export function CreateColumnDialog({ projectId }: { projectId: string }) {
             Create a new workflow stage for this project board.
           </DialogDescription>
         </DialogHeader>
-        <form action={createColumn} className="space-y-4">
+        <ActionForm
+          action={createColumn}
+          errorMessage="Couldn't create column. Please try again."
+          className="space-y-4"
+        >
           <SpaceField />
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="color" value={color} />
@@ -64,7 +69,7 @@ export function CreateColumnDialog({ projectId }: { projectId: string }) {
               Add column
             </SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </DialogContent>
     </Dialog>
   );

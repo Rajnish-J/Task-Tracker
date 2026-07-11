@@ -29,6 +29,7 @@ import {
 
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { useSpace } from "@/components/space-context";
+import { useWeekStartsOn } from "@/hooks/use-week-starts-on";
 import type { TimelineData } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -136,13 +137,17 @@ type ColumnSpec = {
   isWeekend: boolean;
 };
 
-function buildColumns(view: View, anchor: Date): { columns: ColumnSpec[]; total: number; colWidth: number } {
+function buildColumns(
+  view: View,
+  anchor: Date,
+  weekStartsOn: 0 | 1,
+): { columns: ColumnSpec[]; total: number; colWidth: number } {
   let bins: { start: Date; end: Date; top: string; sub: string }[] = [];
   let colWidth = 64;
 
   if (view === "week") {
     colWidth = 64;
-    const start = startOfWeek(anchor, { weekStartsOn: 1 });
+    const start = startOfWeek(anchor, { weekStartsOn });
     bins = Array.from({ length: 14 }, (_, i) => {
       const d = addDays(start, i);
       return { start: startOfDay(d), end: addDays(startOfDay(d), 1), top: format(d, "d"), sub: format(d, "EEE").toUpperCase() };
@@ -249,7 +254,11 @@ export function TimelineBoard({ projects }: { projects: TimelineData }) {
   const [priorityFilter, setPriorityFilter] = React.useState<Set<string>>(() => new Set(allPriorities));
   const [statusFilter, setStatusFilter] = React.useState<Set<StatusKey>>(() => new Set(STATUS_KEYS));
 
-  const { columns, total } = React.useMemo(() => buildColumns(view, anchor), [view, anchor]);
+  const { weekStartsOn } = useWeekStartsOn();
+  const { columns, total } = React.useMemo(
+    () => buildColumns(view, anchor, weekStartsOn),
+    [view, anchor, weekStartsOn],
+  );
   const windowStart = columns[0]?.start ?? startOfDay(anchor);
   const windowEnd = columns[columns.length - 1]?.end ?? addDays(windowStart, 1);
 

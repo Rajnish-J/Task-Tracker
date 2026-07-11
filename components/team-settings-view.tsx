@@ -4,7 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
 import { LogOut, Trash2, UserPlus } from "lucide-react";
+import { toast } from "sonner";
 
+import { deleteTag } from "@/app/actions";
 import {
   cancelInvitation,
   deleteTeam,
@@ -13,9 +15,12 @@ import {
   removeMember,
   updateTeam,
 } from "@/app/team-actions";
+import { ActionForm } from "@/components/action-form";
 import { AccentSelect } from "@/components/accent-select";
+import { IconSelect } from "@/components/icon-select";
 import { MemberSearch } from "@/components/member-search";
 import { SubmitButton } from "@/components/submit-button";
+import { TagBadge } from "@/components/tag-badge";
 import { TeamManagementView } from "@/components/team-management-view";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +44,7 @@ import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { TEAM_COLOR_OPTIONS } from "@/lib/constants";
+import { TEAM_COLOR_OPTIONS, TEAM_ICON_OPTIONS } from "@/lib/constants";
 import type { TeamDetail } from "@/lib/team-data";
 import { initials } from "@/lib/utils/initials";
 import { useInterval } from "@/hooks/use-interval";
@@ -52,6 +57,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
   const router = useRouter();
   const isOwner = team.role === "owner";
   const [color, setColor] = React.useState<string>(team.color ?? TEAM_COLOR_OPTIONS[0]);
+  const [icon, setIcon] = React.useState<string>(team.icon ?? TEAM_ICON_OPTIONS[0]);
   const [removeTarget, setRemoveTarget] = React.useState<TeamDetail["members"][number] | null>(null);
   const [leaveOpen, setLeaveOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
@@ -67,9 +73,11 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
     setInviteError(null);
     try {
       await inviteMember({ teamId: team.id, inviteeId: user.id });
+      toast.success("Invitation sent");
       router.refresh();
     } catch {
       setInviteError("Could not send the invitation. They may already be invited.");
+      toast.error("Could not send the invitation.");
     } finally {
       setInviting(false);
     }
@@ -100,7 +108,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-      <Tabs defaultValue="general" className="mx-auto w-full max-w-3xl p-4 md:p-6">
+      <Tabs defaultValue="general" className="w-full p-4 md:p-6">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           {isOwner ? <TabsTrigger value="management">Management</TabsTrigger> : null}
@@ -118,9 +126,15 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
           </CardHeader>
           <CardContent>
             {isOwner ? (
-              <form action={updateTeam} className="space-y-4">
+              <ActionForm
+                action={updateTeam}
+                successMessage="Team updated"
+                errorMessage="Couldn't update team. Please try again."
+                className="space-y-4"
+              >
                 <input type="hidden" name="teamId" value={team.id} />
                 <input type="hidden" name="color" value={color} />
+                <input type="hidden" name="icon" value={icon} />
                 <div className="space-y-2">
                   <label className="text-sm font-medium" htmlFor="team-settings-name">
                     Team name
@@ -147,13 +161,17 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">Icon</label>
+                  <IconSelect value={icon} onValueChange={setIcon} placeholder="Team icon" />
+                </div>
+                <div className="space-y-2">
                   <label className="text-sm font-medium">Accent</label>
                   <AccentSelect value={color} onValueChange={setColor} placeholder="Team accent" />
                 </div>
                 <div className="flex justify-end">
                   <SubmitButton pendingLabel="Saving…">Save changes</SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
             ) : (
               <div className="space-y-2 text-sm">
                 <p className="font-medium">{team.name}</p>
@@ -248,13 +266,17 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                           Invited {formatDistanceToNow(invitation.createdAt, { addSuffix: true })}
                         </p>
                       </div>
-                      <form action={cancelInvitation}>
+                      <ActionForm
+                        action={cancelInvitation}
+                        successMessage="Invitation canceled"
+                        errorMessage="Couldn't cancel invitation. Please try again."
+                      >
                         <input type="hidden" name="invitationId" value={invitation.id} />
                         <input type="hidden" name="teamId" value={team.id} />
                         <SubmitButton variant="ghost" size="sm" pendingLabel="Canceling…">
                           Cancel
                         </SubmitButton>
-                      </form>
+                      </ActionForm>
                     </li>
                   ))}
                 </ul>
@@ -273,6 +295,47 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                 </Button>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+
+        {/* Tags */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tags</CardTitle>
+            <CardDescription>
+              Tags used across this team&apos;s projects and tasks. Deleting one removes it from
+              anything it&apos;s applied to, without deleting those items.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {team.tags.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No tags yet.</p>
+            ) : (
+              <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+                {team.tags.map((tag) => (
+                  <li key={tag.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <TagBadge tag={tag} />
+                    <ActionForm
+                      action={deleteTag}
+                      successMessage={`Deleted "${tag.name}"`}
+                      errorMessage="Couldn't delete tag. Please try again."
+                    >
+                      <input type="hidden" name="tagId" value={tag.id} />
+                      <input type="hidden" name="teamId" value={team.id} />
+                      <SubmitButton
+                        variant="ghost"
+                        size="sm"
+                        pendingLabel="Deleting…"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Delete
+                      </SubmitButton>
+                    </ActionForm>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
@@ -316,7 +379,13 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
               every team board.
             </DialogDescription>
           </DialogHeader>
-          <form action={removeMember} className="space-y-4">
+          <ActionForm
+            action={removeMember}
+            successMessage="Member removed"
+            errorMessage="Couldn't remove member. Please try again."
+            onSuccess={() => setRemoveTarget(null)}
+            className="space-y-4"
+          >
             <input type="hidden" name="teamId" value={team.id} />
             <input type="hidden" name="memberUserId" value={removeTarget?.user.id ?? ""} />
             <DialogFooter>
@@ -331,7 +400,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                 Remove member
               </SubmitButton>
             </DialogFooter>
-          </form>
+          </ActionForm>
         </DialogContent>
       </Dialog>
 
@@ -345,7 +414,11 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
               its boards. The owner can invite you back later.
             </DialogDescription>
           </DialogHeader>
-          <form action={leaveTeam} className="space-y-4">
+          <ActionForm
+            action={leaveTeam}
+            errorMessage="Couldn't leave team. Please try again."
+            className="space-y-4"
+          >
             <input type="hidden" name="teamId" value={team.id} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setLeaveOpen(false)}>
@@ -359,7 +432,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                 Leave team
               </SubmitButton>
             </DialogFooter>
-          </form>
+          </ActionForm>
         </DialogContent>
       </Dialog>
 
@@ -374,7 +447,11 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
               undone.
             </DialogDescription>
           </DialogHeader>
-          <form action={deleteTeam} className="space-y-4">
+          <ActionForm
+            action={deleteTeam}
+            errorMessage="Couldn't delete team. Please try again."
+            className="space-y-4"
+          >
             <input type="hidden" name="teamId" value={team.id} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>
@@ -388,7 +465,7 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
                 Delete team
               </SubmitButton>
             </DialogFooter>
-          </form>
+          </ActionForm>
         </DialogContent>
       </Dialog>
     </div>

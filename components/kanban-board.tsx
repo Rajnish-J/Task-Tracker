@@ -20,6 +20,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 
 import { moveTask } from "@/app/actions";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
@@ -169,7 +170,7 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
 
     setBoard(nextBoard);
 
-    void moveTask(
+    moveTask(
       {
         projectId: project.id,
         taskId: movedId,
@@ -177,7 +178,9 @@ export function KanbanBoard({ project }: KanbanBoardProps) {
         toIndex: Math.max(0, toIndex),
       },
       teamId ?? undefined,
-    ).then(() => router.refresh());
+    )
+      .then(() => router.refresh())
+      .catch(() => toast.error("Couldn't move task. Please try again."));
   }
 
   return (

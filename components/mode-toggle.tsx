@@ -4,7 +4,7 @@ import * as React from "react";
 import { MoonStar, SunMedium } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 
-import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 export function ModeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -20,13 +20,9 @@ export function ModeToggle() {
   const isDark = mounted && resolvedTheme === "dark";
 
   return (
-    <SidebarMenuButton
-      tooltip={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className="w-full"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-    >
+    <DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
       {isDark ? <MoonStar /> : <SunMedium />}
-      <span>Theme</span>
-    </SidebarMenuButton>
+      Theme
+    </DropdownMenuItem>
   );
 }

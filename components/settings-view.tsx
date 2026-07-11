@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
+  Calendar,
   Check,
   Laptop,
   Loader2,
@@ -15,11 +16,21 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { deleteTag } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
+import { SubmitButton } from "@/components/submit-button";
+import { TagBadge } from "@/components/tag-badge";
 import { useTheme } from "@/components/theme-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogClose,
@@ -31,9 +42,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { authClient } from "@/lib/auth-client";
+import { PRIORITY_OPTIONS } from "@/lib/constants";
+import type { Tag } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { useTaskDefaults } from "@/hooks/use-task-defaults";
+import { useWeekStartsOn } from "@/hooks/use-week-starts-on";
 
 type SessionRow = {
   id: string;
@@ -58,6 +81,7 @@ type SettingsViewProps = {
   currentSessionToken: string;
   sessions: SessionRow[];
   accounts: AccountRow[];
+  tags: Tag[];
   // Server-rendered notifications card (team invites etc.), slotted in so this
   // component stays focused on account concerns.
   notificationsSlot?: React.ReactNode;
@@ -125,10 +149,13 @@ export function SettingsView({
   currentSessionToken,
   sessions,
   accounts,
+  tags,
   notificationsSlot,
 }: SettingsViewProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { defaultPriority, defaultTagId, setDefaultPriority, setDefaultTagId } = useTaskDefaults();
+  const { weekStartsOn, setWeekStartsOn } = useWeekStartsOn();
 
   const [name, setName] = React.useState(user.name ?? "");
   const [savingName, setSavingName] = React.useState(false);
@@ -190,6 +217,11 @@ export function SettingsView({
     { value: "system" as const, label: "System", icon: Monitor },
   ];
 
+  const weekStartOptions = [
+    { value: 0 as const, label: "Sunday", icon: Calendar },
+    { value: 1 as const, label: "Monday", icon: Calendar },
+  ];
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
@@ -209,7 +241,17 @@ export function SettingsView({
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto p-4 md:p-6">
+      <div className="flex-1 overflow-y-auto">
+      <Tabs defaultValue="general" className="w-full p-4 md:p-6">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="tags">Tags</TabsTrigger>
+          <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general">
+      <div className="flex flex-col gap-6">
         {/* Profile header */}
         <Card>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -373,23 +415,74 @@ export function SettingsView({
           </CardContent>
         </Card>
 
-        {/* Notifications (team invites and membership updates) */}
-        {notificationsSlot}
-
-        {/* Appearance */}
+        {/* Task defaults */}
         <Card>
           <CardHeader>
-            <CardTitle>Appearance</CardTitle>
+            <CardTitle>Task defaults</CardTitle>
+            <CardDescription>
+              Applied automatically when you create a new task or checklist item — saved on this
+              device.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default priority</label>
+              <Select
+                value={defaultPriority}
+                onValueChange={(value) => value && setDefaultPriority(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default tag</label>
+              <Select
+                value={defaultTagId ?? ""}
+                onValueChange={(value) => setDefaultTagId(value || null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No tag</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Week starts on */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Week starts on</CardTitle>
+            <CardDescription>
+              Controls the first day of the week shown in the Timeline&apos;s week view — saved on
+              this device.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="inline-flex rounded-lg border border-border/60 p-1">
-              {themeOptions.map((option) => {
-                const active = theme === option.value;
+              {weekStartOptions.map((option) => {
+                const active = weekStartsOn === option.value;
                 return (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setTheme(option.value)}
+                    onClick={() => setWeekStartsOn(option.value)}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                       active
@@ -461,6 +554,93 @@ export function SettingsView({
             </Dialog>
           </CardContent>
         </Card>
+      </div>
+        </TabsContent>
+
+        <TabsContent value="tags">
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tags</CardTitle>
+            <CardDescription>
+              Tags you&apos;ve created across projects and tasks. Deleting one removes it from
+              anything it&apos;s applied to, without deleting those items.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tags.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No tags yet.</p>
+            ) : (
+              <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+                {tags.map((tag) => (
+                  <li key={tag.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <TagBadge tag={tag} />
+                    <ActionForm
+                      action={deleteTag}
+                      successMessage={`Deleted "${tag.name}"`}
+                      errorMessage="Couldn't delete tag. Please try again."
+                    >
+                      <input type="hidden" name="tagId" value={tag.id} />
+                      <SubmitButton
+                        variant="ghost"
+                        size="sm"
+                        pendingLabel="Deleting…"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Delete
+                      </SubmitButton>
+                    </ActionForm>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+        </TabsContent>
+
+        <TabsContent value="appearance">
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>Choose how the app looks on this device.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="inline-flex rounded-lg border border-border/60 p-1">
+              {themeOptions.map((option) => {
+                const active = theme === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTheme(option.value)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                    aria-pressed={active}
+                  >
+                    <option.icon className="size-4" />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+        </TabsContent>
+
+        <TabsContent value="notifications">
+      <div className="flex flex-col gap-6">
+        {notificationsSlot}
+      </div>
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   );

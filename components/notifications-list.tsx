@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Check, Mail, Trash2, UserMinus, UserPlus, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { markNotificationRead, respondToInvitation } from "@/app/team-actions";
 import { Button } from "@/components/ui/button";
@@ -74,8 +75,11 @@ export function NotificationsList({
     setPendingId(item.id);
     try {
       await respondToInvitation({ invitationId, accept });
+      toast.success(accept ? "Invitation accepted" : "Invitation declined");
       router.refresh();
       onChanged?.();
+    } catch {
+      toast.error("Couldn't respond to invitation. Please try again.");
     } finally {
       setPendingId(null);
     }

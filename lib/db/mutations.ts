@@ -209,6 +209,20 @@ export async function resolveTagId(
   }
 }
 
+// Deletes are un-gated by ABAC, same as create/resolve above — tags aren't a
+// Resource in the permission system, so any space member can manage them.
+// References elsewhere (tasks, projects, sections) are ON DELETE SET NULL, so
+// this only detaches the tag; it never cascades into the tagged items.
+export async function deleteTagCore(tagId: string, space: MutationSpace) {
+  const deleted = await db
+    .delete(tags)
+    .where(and(eq(tags.id, tagId), tagScope(space)))
+    .returning({ id: tags.id });
+  if (deleted.length === 0) {
+    throw new MutationError(`Tag ${tagId} not found`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Input schemas. Single validation point for both server actions and chat
 // tools — cores parse their own input.

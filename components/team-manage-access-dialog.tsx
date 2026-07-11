@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 
 import { grantMemberPermissions, revokeMemberPermissions } from "@/app/team-permission-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -102,6 +103,7 @@ export function TeamManageAccessDialog({
           pairs: [{ resource, action }],
           projectId: scope === ALL_PROJECTS_SCOPE ? undefined : scope,
         });
+        toast.success("Permissions updated");
         router.refresh();
       } catch {
         setGrid((prev) => {
@@ -112,6 +114,7 @@ export function TeamManageAccessDialog({
           copy.set(scope, set);
           return copy;
         });
+        toast.error("Couldn't update permissions. Please try again.");
       }
     });
   }
@@ -187,7 +190,7 @@ export function TeamManageAccessDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <Avatar className="size-9">
@@ -225,7 +228,7 @@ export function TeamManageAccessDialog({
 
           <TabsContent value="projects" className="pt-2">
             {tree ? (
-              <div className="thin-scrollbar max-h-80 overflow-y-auto rounded-md border">{tree}</div>
+              <div className="thin-scrollbar max-h-112 overflow-y-auto rounded-md border">{tree}</div>
             ) : (
               <p className="text-sm text-muted-foreground">This team has no projects yet.</p>
             )}

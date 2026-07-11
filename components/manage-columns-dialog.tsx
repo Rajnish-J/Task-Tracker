@@ -4,6 +4,7 @@ import * as React from "react";
 import { Settings2 } from "lucide-react";
 
 import { deleteColumn, updateColumn } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
@@ -58,7 +59,11 @@ export function ManageColumnsDialog({ project }: { project: ProjectColumns }) {
         <div className="space-y-4">
           {project.columns.map((column) => (
             <div key={column.id} className="rounded-lg border border-border/60 p-4">
-              <form action={updateColumn} className="grid gap-4 sm:grid-cols-[1fr_200px_auto]">
+              <ActionForm
+                action={updateColumn}
+                errorMessage="Couldn't update column. Please try again."
+                className="grid gap-4 sm:grid-cols-[1fr_200px_auto]"
+              >
                 <SpaceField />
                 <input type="hidden" name="projectId" value={project.id} />
                 <input type="hidden" name="columnId" value={column.id} />
@@ -84,17 +89,17 @@ export function ManageColumnsDialog({ project }: { project: ProjectColumns }) {
                     Save
                   </SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
               <div className="mt-3 flex items-center justify-between gap-4">
                 <p className="text-sm text-muted-foreground">{column.tasks.length} tasks in this column</p>
-                <form action={deleteColumn}>
+                <ActionForm action={deleteColumn} errorMessage="Couldn't remove column. Please try again.">
                   <SpaceField />
                   <input type="hidden" name="projectId" value={project.id} />
                   <input type="hidden" name="columnId" value={column.id} />
                   <SubmitButton variant="ghost" pendingLabel="Removing..." className="text-destructive hover:text-destructive">
                     Remove column
                   </SubmitButton>
-                </form>
+                </ActionForm>
               </div>
             </div>
           ))}

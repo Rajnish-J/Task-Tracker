@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
@@ -32,6 +33,11 @@ export type SectionFormProps = {
   idPrefix?: string;
   submitLabel: React.ReactNode;
   pendingLabel: string;
+  // Omit successMessage when `action` redirects on success (the navigation is
+  // the signal); pass one for in-place updates that stay on the page.
+  successMessage?: string;
+  errorMessage?: string;
+  onSuccess?: () => void;
 };
 
 // Shared field set for both creating and editing a section. The create dialog and
@@ -47,9 +53,18 @@ export function SectionForm({
   idPrefix = "section",
   submitLabel,
   pendingLabel,
+  successMessage,
+  errorMessage,
+  onSuccess,
 }: SectionFormProps) {
   return (
-    <form action={action} className="space-y-4">
+    <ActionForm
+      action={action}
+      successMessage={successMessage}
+      errorMessage={errorMessage ?? "Couldn't save section. Please try again."}
+      onSuccess={onSuccess}
+      className="space-y-4"
+    >
       <SpaceField />
       {sectionId ? <input type="hidden" name="sectionId" value={sectionId} /> : null}
       <div className="space-y-2">
@@ -110,6 +125,6 @@ export function SectionForm({
       <div className="flex justify-end">
         <SubmitButton pendingLabel={pendingLabel}>{submitLabel}</SubmitButton>
       </div>
-    </form>
+    </ActionForm>
   );
 }

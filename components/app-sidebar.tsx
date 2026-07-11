@@ -15,11 +15,9 @@ import {
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { CreateSectionDialog } from "@/components/create-section-dialog";
-import { ModeToggle } from "@/components/mode-toggle";
 import { NavProjects } from "@/components/nav-projects";
 import { NavSections } from "@/components/nav-sections";
 import { NavUser } from "@/components/nav-user";
-import { NotificationBell } from "@/components/notification-bell";
 import { useCanManageStructure, useSpace } from "@/components/space-context";
 import { SpaceSwitcher, type SwitcherTeam } from "@/components/space-switcher";
 import { Button } from "@/components/ui/button";
@@ -174,13 +172,7 @@ export function AppSidebar({
             </SidebarMenuItem>
           ) : null}
           <SidebarMenuItem>
-            <NotificationBell unreadCount={unreadCount} />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <ModeToggle />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <NavUser />
+            <NavUser unreadCount={unreadCount} />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

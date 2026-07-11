@@ -27,9 +27,14 @@ type TagOption = { id: string; name: string; color: string };
 //   - (nothing)        → left untagged
 export function TagPicker({
   defaultTag,
+  defaultTagId,
   idPrefix = "tag",
 }: {
   defaultTag?: TagOption | null;
+  // Id-only variant of `defaultTag`, for callers (e.g. the personal "task
+  // defaults" preference) that only know the id and let this component
+  // resolve it against the fetched tag pool. Ignored if `defaultTag` is set.
+  defaultTagId?: string | null;
   idPrefix?: string;
 }) {
   const { teamId } = useSpace();
@@ -37,6 +42,10 @@ export function TagPicker({
   const [selection, setSelection] = React.useState<string>(defaultTag?.id ?? NONE);
   const [newName, setNewName] = React.useState("");
   const [newColor, setNewColor] = React.useState<string>(TAG_COLOR_OPTIONS[0]);
+  // Only auto-apply defaultTagId once, and only if the user hasn't touched
+  // the selector since — otherwise a re-fetch would fight a manual change.
+  const appliedDefaultId = React.useRef(false);
+  const touchedByUser = React.useRef(false);
 
   React.useEffect(() => {
     let active = true;
@@ -48,6 +57,16 @@ export function TagPicker({
             ? [defaultTag, ...rows]
             : rows;
         setTags(merged);
+        if (
+          !defaultTag &&
+          defaultTagId &&
+          !appliedDefaultId.current &&
+          !touchedByUser.current &&
+          rows.some((tag) => tag.id === defaultTagId)
+        ) {
+          appliedDefaultId.current = true;
+          setSelection(defaultTagId);
+        }
       })
       .catch(() => {
         // Non-fatal: the picker still works for creating a new tag.
@@ -55,7 +74,7 @@ export function TagPicker({
     return () => {
       active = false;
     };
-  }, [defaultTag, teamId]);
+  }, [defaultTag, defaultTagId, teamId]);
 
   const isNew = selection === NEW;
   const selectedExistingId = selection !== NEW && selection !== NONE ? selection : "";
@@ -67,7 +86,10 @@ export function TagPicker({
       </label>
       <Select
         value={selection}
-        onValueChange={(next) => setSelection(next ?? NONE)}
+        onValueChange={(next) => {
+          touchedByUser.current = true;
+          setSelection(next ?? NONE);
+        }}
         items={[
           { label: "No tag", value: NONE },
           ...tags.map((tag) => ({ label: tag.name, value: tag.id })),

@@ -3,9 +3,10 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { Check, Pencil } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { deleteTask, updateTask } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { StoryTasksPanel } from "@/components/story-tasks-panel";
 import { SubmitButton } from "@/components/submit-button";
@@ -72,11 +73,21 @@ export function TaskDetailsSheet({
 }: TaskDetailsSheetProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const initialMode = searchParams.get("edit") === "1" ? "edit" : "view";
 
   return (
     <Dialog open={Boolean(task)} onOpenChange={(open) => !open && router.replace(pathname)}>
       <DialogContent className="max-h-[90vh] w-full overflow-y-auto sm:max-w-3xl">
-        {task ? <TaskDetailsForm key={task.id} projectId={projectId} task={task} columns={columns} /> : null}
+        {task ? (
+          <TaskDetailsForm
+            key={`${task.id}-${initialMode}`}
+            projectId={projectId}
+            task={task}
+            columns={columns}
+            initialMode={initialMode}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -86,14 +97,16 @@ function TaskDetailsForm({
   projectId,
   task,
   columns,
+  initialMode,
 }: {
   projectId: string;
   task: NonNullable<TaskDetailsSheetProps["task"]>;
   columns: ColumnOption[];
+  initialMode: "view" | "edit";
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [mode, setMode] = React.useState<"view" | "edit">("view");
+  const [mode, setMode] = React.useState<"view" | "edit">(initialMode);
   const [selectedColumn, setSelectedColumn] = React.useState<string>(task.columnId);
   const [selectedPriority, setSelectedPriority] = React.useState<string>(task.priority);
 
@@ -126,7 +139,12 @@ function TaskDetailsForm({
         />
       ) : (
       <>
-      <form action={updateTask} className="mt-6 space-y-5">
+      <ActionForm
+        action={updateTask}
+        successMessage="Task saved"
+        errorMessage="Couldn't save task. Please try again."
+        className="mt-6 space-y-5"
+      >
         <SpaceField />
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="taskId" value={task.id} />
@@ -227,20 +245,24 @@ function TaskDetailsForm({
             Save changes
           </SubmitButton>
         </div>
-      </form>
+      </ActionForm>
 
       <div className="mt-6">
         <StoryTasksPanel projectId={projectId} storyId={task.id} storyTasks={task.storyTasks} />
       </div>
 
-      <form action={deleteTask} className="mt-3">
+      <ActionForm
+        action={deleteTask}
+        errorMessage="Couldn't delete task. Please try again."
+        className="mt-3"
+      >
         <SpaceField />
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="taskId" value={task.id} />
         <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
           Delete task
         </SubmitButton>
-      </form>
+      </ActionForm>
       </>
       )}
     </>

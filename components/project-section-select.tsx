@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { updateProjectSection } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import {
   Select,
@@ -44,7 +45,12 @@ export function ProjectSectionSelect({
   ];
 
   return (
-    <form ref={formRef} action={updateProjectSection} className="flex items-center gap-2">
+    <ActionForm
+      ref={formRef}
+      action={updateProjectSection}
+      errorMessage="Couldn't move project. Please try again."
+      className="flex items-center gap-2"
+    >
       <SpaceField />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="sectionId" value={value} />
@@ -70,6 +76,6 @@ export function ProjectSectionSelect({
           ))}
         </SelectContent>
       </Select>
-    </form>
+    </ActionForm>
   );
 }

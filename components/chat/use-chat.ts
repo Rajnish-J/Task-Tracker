@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import type { ChatMessageView, ToolChip } from "@/components/chat/types";
 
@@ -120,9 +121,12 @@ export function useChat(options: UseChatOptions = {}) {
                 });
               }
               break;
-            case "error":
-              setError((data.message as string) ?? "Something went wrong.");
+            case "error": {
+              const message = (data.message as string) ?? "Something went wrong.";
+              setError(message);
+              toast.error(message);
               break;
+            }
             case "done":
               if (data.mutated) {
                 // Server actions already revalidated; refresh re-renders the
@@ -160,7 +164,9 @@ export function useChat(options: UseChatOptions = {}) {
         }
       } catch (cause) {
         if (!(cause instanceof DOMException && cause.name === "AbortError")) {
-          setError(cause instanceof Error ? cause.message : "Something went wrong.");
+          const message = cause instanceof Error ? cause.message : "Something went wrong.";
+          setError(message);
+          toast.error(message);
         }
       } finally {
         setIsStreaming(false);
@@ -194,7 +200,9 @@ export function useChat(options: UseChatOptions = {}) {
         })),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load this conversation.");
+      const message = cause instanceof Error ? cause.message : "Could not load this conversation.";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

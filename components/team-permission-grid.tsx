@@ -35,23 +35,23 @@ export function PermissionGrid({
   disabled?: boolean;
 }) {
   return (
-    <table className="text-sm">
+    <table className="w-full table-fixed rounded-md border text-sm">
       <thead>
-        <tr>
-          <th className="w-32 text-left font-medium text-muted-foreground" />
+        <tr className="divide-x divide-border bg-muted/30">
+          <th className="w-32 py-2 pl-3 text-left font-medium text-muted-foreground" />
           {ACTION_VALUES.map((action) => (
-            <th key={action} className="px-3 pb-1 text-left font-medium text-muted-foreground">
+            <th key={action} className="px-3 py-2 text-left font-medium text-muted-foreground">
               {ACTION_LABELS[action]}
             </th>
           ))}
         </tr>
       </thead>
-      <tbody>
+      <tbody className="divide-y divide-border">
         {RESOURCE_VALUES.map((resource) => (
-          <tr key={resource}>
-            <td className="pr-3 py-1 font-medium">{RESOURCE_LABELS[resource]}</td>
+          <tr key={resource} className="divide-x divide-border">
+            <td className="py-2 pl-3 font-medium">{RESOURCE_LABELS[resource]}</td>
             {ACTION_VALUES.map((action) => (
-              <td key={action} className="px-3 py-1">
+              <td key={action} className="px-3 py-2">
                 <Checkbox
                   checked={checked(resource, action)}
                   disabled={disabled}

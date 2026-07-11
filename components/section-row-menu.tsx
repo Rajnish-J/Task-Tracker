@@ -4,6 +4,7 @@ import * as React from "react";
 import { MoreHorizontal } from "lucide-react";
 
 import { deleteSection, updateSection } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { SectionForm } from "@/components/section-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
@@ -84,10 +85,9 @@ export function SectionRowMenu({ section, sections }: SectionRowMenuProps) {
             </DialogDescription>
           </DialogHeader>
           <SectionForm
-            action={async (formData) => {
-              await updateSection(formData);
-              setEditOpen(false);
-            }}
+            action={updateSection}
+            onSuccess={() => setEditOpen(false)}
+            errorMessage="Couldn't update section. Please try again."
             sectionId={section.id}
             sections={sections}
             defaultName={section.name}
@@ -110,7 +110,11 @@ export function SectionRowMenu({ section, sections }: SectionRowMenuProps) {
               promoted to the top level and its projects are ungrouped — no boards or cards are lost.
             </DialogDescription>
           </DialogHeader>
-          <form action={deleteSection} className="space-y-4">
+          <ActionForm
+            action={deleteSection}
+            errorMessage="Couldn't delete section. Please try again."
+            className="space-y-4"
+          >
             <SpaceField />
             <input type="hidden" name="sectionId" value={section.id} />
             <DialogFooter>
@@ -125,7 +129,7 @@ export function SectionRowMenu({ section, sections }: SectionRowMenuProps) {
                 Delete section
               </SubmitButton>
             </DialogFooter>
-          </form>
+          </ActionForm>
         </DialogContent>
       </Dialog>
     </>

@@ -1,9 +1,13 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { Bell, ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { toast } from "sonner";
 
+import { ModeToggle } from "@/components/mode-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -27,10 +31,12 @@ function initials(name?: string | null, email?: string | null) {
   return letters.toUpperCase();
 }
 
-// Signed-in user chip in the sidebar footer, with a dropdown to sign out.
-export function NavUser() {
+// Signed-in user chip in the sidebar footer, with a dropdown to sign out
+// (plus the notifications and theme controls, moved in from the sidebar footer).
+export function NavUser({ unreadCount }: { unreadCount: number }) {
   const router = useRouter();
   const { data: session, isPending } = useSession();
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
 
   if (isPending || !session) {
     return null;
@@ -39,12 +45,17 @@ export function NavUser() {
   const { name, email, image } = session.user;
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push("/login");
-    router.refresh();
+    try {
+      await signOut();
+      router.push("/login");
+      router.refresh();
+    } catch {
+      toast.error("Couldn't sign out. Please try again.");
+    }
   };
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
@@ -82,6 +93,18 @@ export function NavUser() {
           <Settings className="size-4" />
           Account settings
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setNotificationsOpen(true)}>
+          <span className="relative flex size-4 items-center justify-center">
+            <Bell className="size-4" />
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold leading-none text-primary-foreground">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : null}
+          </span>
+          Notifications
+        </DropdownMenuItem>
+        <ModeToggle />
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
           <LogOut className="size-4" />
@@ -89,5 +112,11 @@ export function NavUser() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <NotificationBell
+      unreadCount={unreadCount}
+      open={notificationsOpen}
+      onOpenChange={setNotificationsOpen}
+    />
+    </>
   );
 }

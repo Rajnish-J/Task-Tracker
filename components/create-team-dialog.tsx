@@ -5,7 +5,9 @@ import { ArrowLeft, ArrowRight, Info, Plus, Users } from "lucide-react";
 
 import { createTeam } from "@/app/team-actions";
 import type { UserSearchResult } from "@/app/team-actions";
+import { ActionForm } from "@/components/action-form";
 import { AccentSelect } from "@/components/accent-select";
+import { IconSelect } from "@/components/icon-select";
 import { MemberSearch } from "@/components/member-search";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
@@ -19,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { TEAM_COLOR_OPTIONS } from "@/lib/constants";
+import { TEAM_COLOR_OPTIONS, TEAM_ICON_OPTIONS } from "@/lib/constants";
 
 // Two-step team creation: (1) name/description/color, (2) invite members via
 // email search — skippable, with a gentle nudge that inviting is appreciated.
@@ -38,6 +40,7 @@ export function CreateTeamDialog({
   const [step, setStep] = React.useState<1 | 2>(1);
   const [name, setName] = React.useState("");
   const [color, setColor] = React.useState<string>(TEAM_COLOR_OPTIONS[0]);
+  const [icon, setIcon] = React.useState<string>(TEAM_ICON_OPTIONS[0]);
   const [invitees, setInvitees] = React.useState<UserSearchResult[]>([]);
 
   const handleOpenChange = (next: boolean) => {
@@ -70,8 +73,13 @@ export function CreateTeamDialog({
               : "Search teammates by email and invite them to join. They'll get an in-app notification to accept or decline."}
           </DialogDescription>
         </DialogHeader>
-        <form action={createTeam} className="space-y-4">
+        <ActionForm
+          action={createTeam}
+          errorMessage="Couldn't create team. Please try again."
+          className="space-y-4"
+        >
           <input type="hidden" name="color" value={color} />
+          <input type="hidden" name="icon" value={icon} />
           {invitees.map((user) => (
             <input key={user.id} type="hidden" name="inviteeIds" value={user.id} />
           ))}
@@ -103,6 +111,10 @@ export function CreateTeamDialog({
                 maxLength={240}
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Icon</label>
+              <IconSelect value={icon} onValueChange={setIcon} placeholder="Select a team icon" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Accent</label>
@@ -153,7 +165,7 @@ export function CreateTeamDialog({
               </div>
             </div>
           </div>
-        </form>
+        </ActionForm>
       </DialogContent>
     </Dialog>
   );

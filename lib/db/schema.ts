@@ -115,6 +115,7 @@ export const teams = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     color: text("color"),
+    icon: text("icon"),
     creatorId: text("creatorId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

@@ -21,6 +21,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 
 import { reorderProjects } from "@/app/actions";
 import { ProjectRowMenu } from "@/components/project-row-menu";
@@ -254,10 +255,12 @@ function SectionProjects({
     const next = arrayMove(items, oldIndex, newIndex);
     setItems(next);
 
-    void reorderProjects(
+    reorderProjects(
       { orderedIds: next.map((project) => project.id) },
       teamId ?? undefined,
-    ).then(() => router.refresh());
+    )
+      .then(() => router.refresh())
+      .catch(() => toast.error("Couldn't reorder projects. Please try again."));
   }
 
   if (items.length === 0) {

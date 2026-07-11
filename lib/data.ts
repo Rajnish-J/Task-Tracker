@@ -633,6 +633,7 @@ export type SectionBoardCard = {
     id: string;
     title: string;
     priority: Priority;
+    dueDate: Date | null;
     isDone: boolean;
     tag: Tag | null;
   }[];
@@ -711,6 +712,7 @@ export async function getSectionBoard(sectionId: string, teamId?: string) {
         id: story.id,
         title: story.title,
         priority: story.priority as Priority,
+        dueDate: story.dueDate,
         isDone: story.isDone,
         tag: story.tag ?? null,
       })),
