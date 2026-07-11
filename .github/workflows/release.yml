@@ -1,0 +1,56 @@
+name: Release
+
+# Runs after the CI workflow finishes on main. Bumps package.json's version,
+# prepends an entry to content/changelog.json (surfaced in-app via the
+# sidebar's version badge / "What's new" dialog), and tags the commit — all
+# derived from the pushed commit's conventional-commit prefix + diff size
+# (see scripts/release.mjs). Gated on CI succeeding first, not raced against
+# it off the same push event.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      !contains(github.event.workflow_run.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Compute release
+        id: release
+        run: |
+          version=$(node scripts/release.mjs)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json content/changelog.json
+          git commit -m "chore(release): v${{ steps.release.outputs.version }} [skip release]"
+          git tag "v${{ steps.release.outputs.version }}"
+          git push origin HEAD:main
+          git push origin "v${{ steps.release.outputs.version }}"

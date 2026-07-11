@@ -1,6 +1,6 @@
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { TimelineBoard } from "@/components/timeline-board";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getTimelineData } from "@/lib/data";
 
 // Server view shared by the personal and team timeline pages.
@@ -22,12 +22,11 @@ export async function TimelineView({ taskId, teamId }: { taskId?: string; teamId
 
   return (
     <div className="flex h-full flex-1 flex-col">
+      <HeaderBreadcrumb>
+        <span className="text-foreground">Timeline</span>
+      </HeaderBreadcrumb>
       <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <SidebarTrigger className="-ml-1 text-foreground" />
-          <span className="text-foreground">Timeline</span>
-        </div>
-        <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
+        <p className="max-w-3xl text-sm text-muted-foreground">
           Plan across every project. User stories and their subtasks laid out against time, from
           creation to due date.
         </p>

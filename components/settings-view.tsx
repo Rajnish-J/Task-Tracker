@@ -18,6 +18,7 @@ import {
 
 import { deleteTag } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
 import { useTheme } from "@/components/theme-provider";
@@ -49,7 +50,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { authClient } from "@/lib/auth-client";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
@@ -224,14 +224,13 @@ export function SettingsView({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <HeaderBreadcrumb>
+        <span>Workspace</span>
+        <span>/</span>
+        <span className="text-foreground">Settings</span>
+      </HeaderBreadcrumb>
       <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <SidebarTrigger className="-ml-1 text-foreground" />
-            <span>Workspace</span>
-            <span>/</span>
-            <span className="text-foreground">Settings</span>
-          </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Account settings</h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">

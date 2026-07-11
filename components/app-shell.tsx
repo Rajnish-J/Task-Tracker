@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { HeaderSlotsProvider } from "@/components/header-slots";
 import { SiteHeader } from "@/components/site-header";
 import { SpaceProvider } from "@/components/space-context";
 import type { SwitcherTeam } from "@/components/space-switcher";
@@ -30,21 +31,23 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <SpaceProvider teamId={teamId} role={role}>
-      <SidebarProvider defaultOpen>
-        <AppSidebar
-          tree={tree}
-          ungroupedProjects={ungroupedProjects}
-          sectionOptions={sectionOptions}
-          teams={teams}
-          unreadCount={unreadCount}
-        />
-        <SidebarInset className="min-h-svh min-w-0 overflow-hidden">
-          <SiteHeader basePath={teamId ? `/teams/${teamId}` : ""} unreadCount={unreadCount} />
-          {children}
-        </SidebarInset>
-        {/* The chat assistant operates on personal data only. */}
-        {teamId ? null : <ChatWidget />}
-      </SidebarProvider>
+      <HeaderSlotsProvider>
+        <SidebarProvider defaultOpen>
+          <AppSidebar
+            tree={tree}
+            ungroupedProjects={ungroupedProjects}
+            sectionOptions={sectionOptions}
+            teams={teams}
+            unreadCount={unreadCount}
+          />
+          <SidebarInset className="min-h-svh min-w-0 overflow-hidden">
+            <SiteHeader basePath={teamId ? `/teams/${teamId}` : ""} unreadCount={unreadCount} />
+            {children}
+          </SidebarInset>
+          {/* The chat assistant operates on personal data only. */}
+          {teamId ? null : <ChatWidget />}
+        </SidebarProvider>
+      </HeaderSlotsProvider>
     </SpaceProvider>
   );
 }

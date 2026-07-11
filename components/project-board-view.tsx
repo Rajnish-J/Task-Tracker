@@ -2,12 +2,12 @@ import { format } from "date-fns";
 
 import { CreateColumnDialog } from "@/components/create-column-dialog";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { KanbanBoard } from "@/components/kanban-board";
 import { ManageColumnsDialog } from "@/components/manage-columns-dialog";
 import { ProjectSectionSelect } from "@/components/project-section-select";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { Badge } from "@/components/ui/badge";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { flattenSectionTree, getProjectBoard, getSectionsTree } from "@/lib/data";
 import { getSpaceContext } from "@/lib/space";
 
@@ -37,15 +37,14 @@ export async function ProjectBoardView({
 
   return (
     <div className="flex h-full flex-1 flex-col">
+      <HeaderBreadcrumb>
+        <span>Projects</span>
+        <span>/</span>
+        <span className="text-foreground">{project.name}</span>
+      </HeaderBreadcrumb>
       <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <SidebarTrigger className="-ml-1 text-foreground" />
-              <span>Projects</span>
-              <span>/</span>
-              <span className="text-foreground">{project.name}</span>
-            </div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
               <Badge variant="secondary">{project.columns.length} columns</Badge>

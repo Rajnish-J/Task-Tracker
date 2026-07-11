@@ -1,22 +1,34 @@
-import Link from "next/link";
-import { ListChecks } from "lucide-react";
+"use client";
 
 import { HeaderNotificationBell } from "@/components/header-notification-bell";
+import { useHeaderSlots } from "@/components/header-slots";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
-// App-wide top bar, sticky above every page's own content. Kept deliberately
-// minimal (brand + notifications) since each page still renders its own
-// breadcrumb/SidebarTrigger header below this.
-export function SiteHeader({ basePath, unreadCount }: { basePath: string; unreadCount: number }) {
+// App-wide top bar, sticky above every page's own content. Owns the sidebar
+// toggle and the current page's breadcrumb (published via HeaderBreadcrumb),
+// plus notifications and any page-specific trailing action (HeaderTrailing).
+export function SiteHeader({
+  unreadCount,
+}: {
+  basePath: string;
+  unreadCount: number;
+}) {
+  const { breadcrumb, trailing } = useHeaderSlots();
+
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur md:px-6">
-      <Link
-        href={`${basePath}/dashboard`}
-        className="flex items-center gap-2 text-sm font-semibold tracking-tight"
-      >
-        <ListChecks className="size-5 text-primary" />
-        Task Tracker
-      </Link>
-      <HeaderNotificationBell unreadCount={unreadCount} />
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <SidebarTrigger className="-ml-1 text-foreground" />
+        {breadcrumb ? (
+          <div className="flex min-w-0 items-center gap-2 truncate border-l border-border/60 pl-3 text-sm text-muted-foreground">
+            {breadcrumb}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <HeaderNotificationBell unreadCount={unreadCount} />
+        {trailing}
+      </div>
     </header>
   );
 }

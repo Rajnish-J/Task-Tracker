@@ -31,6 +31,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { VersionBadgeButton } from "@/components/version-badge-button";
 import type { SectionNode, SectionProject } from "@/lib/data";
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
@@ -60,6 +61,9 @@ export function AppSidebar({
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu className="group-data-[collapsible=icon]:hidden">
+          <SidebarMenuItem>
+            <VersionBadgeButton />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SpaceSwitcher teams={teams} />
           </SidebarMenuItem>

@@ -1,17 +1,16 @@
 import { BoardSkeleton } from "@/components/board-skeleton";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProjectLoading() {
   return (
     <div className="flex h-full flex-1 flex-col">
+      <HeaderBreadcrumb>
+        <Skeleton className="h-4 w-32" />
+      </HeaderBreadcrumb>
       <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <SidebarTrigger className="-ml-1 text-foreground" />
-              <Skeleton className="h-4 w-40" />
-            </div>
             <div className="flex flex-wrap items-center gap-3">
               <Skeleton className="h-8 w-48" />
               <Skeleton className="h-6 w-24 rounded-full" />

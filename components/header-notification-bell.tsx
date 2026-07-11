@@ -46,10 +46,10 @@ export function HeaderNotificationBell({ unreadCount }: { unreadCount: number })
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-            <Bell className="size-5" />
+          <Button variant="ghost" size="icon-sm" aria-label="Notifications" className="relative">
+            <Bell className="size-4" />
             {liveUnreadCount > 0 ? (
-              <span className="absolute right-1.5 top-1.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold leading-none text-primary-foreground">
+              <span className="absolute right-1 top-1 flex size-3 items-center justify-center rounded-full bg-primary text-[8px] font-semibold leading-none text-primary-foreground">
                 {liveUnreadCount > 9 ? "9+" : liveUnreadCount}
               </span>
             ) : null}

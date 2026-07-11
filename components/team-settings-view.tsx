@@ -40,8 +40,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { Input } from "@/components/ui/input";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { TEAM_COLOR_OPTIONS, TEAM_ICON_OPTIONS } from "@/lib/constants";
@@ -85,14 +85,13 @@ export function TeamSettingsView({ team }: { team: TeamDetail }) {
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <HeaderBreadcrumb>
+        <span>{team.name}</span>
+        <span>/</span>
+        <span className="text-foreground">Team settings</span>
+      </HeaderBreadcrumb>
       <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <SidebarTrigger className="-ml-1 text-foreground" />
-            <span>{team.name}</span>
-            <span>/</span>
-            <span className="text-foreground">Team settings</span>
-          </div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">Team settings</h1>
             <Badge variant={isOwner ? "default" : "secondary"}>{team.role}</Badge>

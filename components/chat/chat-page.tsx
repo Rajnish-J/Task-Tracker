@@ -8,6 +8,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ToolsPopover } from "@/components/chat/tools-popover";
 import { useChat } from "@/components/chat/use-chat";
+import { HeaderTrailing } from "@/components/header-slots";
 import { Button } from "@/components/ui/button";
 import { TOOL_CATALOG } from "@/lib/ai/tool-catalog";
 
@@ -55,15 +56,16 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <Button
-        variant="secondary"
-        size="icon"
-        aria-label="Conversation history"
-        className="fixed right-4 top-20 z-40 rounded-full shadow-md"
-        onClick={() => setHistoryOpen(true)}
-      >
-        <PanelLeftIcon className="size-4" />
-      </Button>
+      <HeaderTrailing>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Conversation history"
+          onClick={() => setHistoryOpen(true)}
+        >
+          <PanelLeftIcon className="size-4" />
+        </Button>
+      </HeaderTrailing>
       <ConversationList
         activeId={chat.conversationId}
         refreshKey={listRefreshKey}

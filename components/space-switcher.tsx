@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
-import { TEAM_COLOR_META } from "@/lib/constants";
 import { TeamIcon } from "@/lib/team-icons";
 
 export type SwitcherTeam = {
@@ -25,13 +24,15 @@ export type SwitcherTeam = {
   role: "owner" | "member";
 };
 
-// Colored square with the team's chosen icon, echoing the team's accent color.
+// The team's chosen icon alone (no background swatch), tinted with the
+// team's accent color — `team.color` is one of the text-* classes below.
 function TeamGlyph({ team, className }: { team: SwitcherTeam; className?: string }) {
-  const swatch = team.color ? TEAM_COLOR_META[team.color]?.swatch : undefined;
+  const tint = team.color
+    ?.split(" ")
+    .filter((cls) => cls.startsWith("text-") || cls.startsWith("dark:text-"))
+    .join(" ");
   return (
-    <div
-      className={`flex items-center justify-center rounded-lg text-white ${swatch ?? "bg-sidebar-primary"} ${className ?? "size-8"}`}
-    >
+    <div className={`flex items-center justify-center ${tint || "text-sidebar-foreground"} ${className ?? "size-8"}`}>
       <TeamIcon icon={team.icon} className="size-4" />
     </div>
   );

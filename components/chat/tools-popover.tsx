@@ -44,7 +44,7 @@ export function ToolsPopover({ catalog, disabledTools, onToggle }: ToolsPopoverP
         </Badge>
         <ChevronDown className="size-3" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-96 w-64 overflow-y-auto">
+      <DropdownMenuContent align="start" className="thin-scrollbar max-h-96 w-64 overflow-y-auto">
         {catalog.map((group, index) => (
           <React.Fragment key={group.category}>
             {index > 0 ? <DropdownMenuSeparator /> : null}

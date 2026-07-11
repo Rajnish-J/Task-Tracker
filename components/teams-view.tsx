@@ -28,8 +28,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { Input } from "@/components/ui/input";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import {
   TEAM_COLOR_META,
@@ -57,15 +57,14 @@ export function TeamsView({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <HeaderBreadcrumb>
+        <span>Workspace</span>
+        <span>/</span>
+        <span className="text-foreground">Teams</span>
+      </HeaderBreadcrumb>
       <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <SidebarTrigger className="-ml-1 text-foreground" />
-              <span>Workspace</span>
-              <span>/</span>
-              <span className="text-foreground">Teams</span>
-            </div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">Teams</h1>
               <Badge variant="secondary">{teams.length} teams</Badge>

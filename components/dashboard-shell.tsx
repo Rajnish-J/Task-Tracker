@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Tag as TagIcon } from "lucide-react";
 
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type TagOption = { id: string; name: string; color: string };
@@ -51,15 +51,14 @@ export function DashboardShell({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <HeaderBreadcrumb>
+        <span>Workspace</span>
+        <span>/</span>
+        <span className="text-foreground">Dashboard</span>
+      </HeaderBreadcrumb>
       <header className="shrink-0 border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <SidebarTrigger className="-ml-1 text-foreground" />
-              <span>Workspace</span>
-              <span>/</span>
-              <span className="text-foreground">Dashboard</span>
-            </div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
               {isPending ? <HeaderBadgesSkeleton /> : badges}

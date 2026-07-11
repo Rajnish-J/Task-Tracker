@@ -2,11 +2,11 @@ import { FolderKanban, FolderTree, Info } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { CreateSectionDialog } from "@/components/create-section-dialog";
+import { HeaderBreadcrumb } from "@/components/header-slots";
 import { SectionBoard } from "@/components/section-board";
 import { TaskDetailsSheet } from "@/components/task-details-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { flattenSectionTree, getSectionBoard, getSectionsTree, getTaskForSheet } from "@/lib/data";
 import { getSpaceContext } from "@/lib/space";
 
@@ -34,15 +34,14 @@ export async function SectionBoardView({
 
   return (
     <div className="flex h-full flex-1 flex-col">
+      <HeaderBreadcrumb>
+        <span>Sections</span>
+        <span>/</span>
+        <span className="text-foreground">{section.name}</span>
+      </HeaderBreadcrumb>
       <header className="border-b border-border/60 bg-background/80 px-4 py-4 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <SidebarTrigger className="-ml-1 text-foreground" />
-              <span>Sections</span>
-              <span>/</span>
-              <span className="text-foreground">{section.name}</span>
-            </div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">{section.name}</h1>
               <Badge variant="secondary">{totalTasks} cards</Badge>

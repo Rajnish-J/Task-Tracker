@@ -1,0 +1,107 @@
+[
+  {
+    "version": "0.10.0",
+    "date": "2026-07-11",
+    "badge": "New",
+    "title": "Add task defaults and week start preferences",
+    "commit": "6865735"
+  },
+  {
+    "version": "0.9.1",
+    "date": "2026-07-10",
+    "badge": "Changed",
+    "title": "Enhance permission system with project scoping",
+    "commit": "d03d742"
+  },
+  {
+    "version": "0.9.0",
+    "date": "2026-07-10",
+    "badge": "New",
+    "title": "Add team management view with permissions grid",
+    "commit": "388fd6d"
+  },
+  {
+    "version": "0.8.0",
+    "date": "2026-07-09",
+    "badge": "New",
+    "title": "Team management, login redesign, and chat page",
+    "commit": "c791514"
+  },
+  {
+    "version": "0.7.1",
+    "date": "2026-07-08",
+    "badge": "Changed",
+    "title": "Email/password auth and login form validation",
+    "commit": "c56d3f4"
+  },
+  {
+    "version": "0.7.0",
+    "date": "2026-07-08",
+    "badge": "New",
+    "title": "Integrate authentication and session management",
+    "commit": "a40cd45"
+  },
+  {
+    "version": "0.6.1",
+    "date": "2026-07-02",
+    "badge": "Changed",
+    "title": "Refactor to a shared Select component and theme handling",
+    "commit": "be94531"
+  },
+  {
+    "version": "0.6.0",
+    "date": "2026-06-29",
+    "badge": "New",
+    "title": "Timeline view with tag filtering",
+    "commit": "0c6e6f9"
+  },
+  {
+    "version": "0.5.0",
+    "date": "2026-06-28",
+    "badge": "New",
+    "title": "Loading animations and tag filters",
+    "commit": "23398b5"
+  },
+  {
+    "version": "0.4.2",
+    "date": "2026-06-28",
+    "badge": "Changed",
+    "title": "Sidebar improvements",
+    "commit": "b73927c"
+  },
+  {
+    "version": "0.4.1",
+    "date": "2026-06-28",
+    "badge": "Changed",
+    "title": "UI enhancements",
+    "commit": "fa2719b"
+  },
+  {
+    "version": "0.4.0",
+    "date": "2026-06-27",
+    "badge": "New",
+    "title": "Sections and tags",
+    "commit": "ba69d9a"
+  },
+  {
+    "version": "0.3.0",
+    "date": "2026-06-25",
+    "badge": "New",
+    "title": "Phase two: expanded workflows",
+    "commit": "0cda091"
+  },
+  {
+    "version": "0.2.0",
+    "date": "2026-06-25",
+    "badge": "New",
+    "title": "Timelines, tasks and dashboard",
+    "commit": "780a9d8"
+  },
+  {
+    "version": "0.1.0",
+    "date": "2026-06-25",
+    "badge": "New",
+    "title": "Initial scaffold",
+    "commit": "c71c9c8"
+  }
+]
