@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { deleteProject, moveProjectToSection, updateProject } from "@/app/actions";
@@ -41,6 +42,7 @@ type ProjectRowMenuProps = {
     id: string;
     name: string;
     description: string | null;
+    dueDate: Date | null;
     sectionId: string | null;
     tag: TagOption | null;
   };
@@ -136,6 +138,7 @@ export function ProjectRowMenu({ project, sections, currentSectionId }: ProjectR
             sections={sections}
             defaultName={project.name}
             defaultDescription={project.description ?? ""}
+            defaultDueDate={project.dueDate ? format(project.dueDate, "yyyy-MM-dd") : ""}
             defaultSectionId={project.sectionId ?? ""}
             defaultTag={project.tag}
             idPrefix={`edit-project-${project.id}`}

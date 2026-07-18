@@ -446,6 +446,7 @@ export type SectionProject = {
   taskCount: number;
   // Carried so the sidebar's edit dialog can prefill every field, not just the name.
   description: string | null;
+  dueDate: Date | null;
   sectionId: string | null;
   tag: Tag | null;
 };
@@ -505,7 +506,7 @@ export async function getSectionsTree(teamId?: string): Promise<{
         desc(projects.updatedAt),
         desc(projects.createdAt),
       ],
-      columns: { id: true, name: true, slug: true, sectionId: true, description: true },
+      columns: { id: true, name: true, slug: true, sectionId: true, description: true, dueDate: true },
       with: { tasks: { columns: { id: true } }, tag: true },
     }),
   ]);
@@ -534,6 +535,7 @@ export async function getSectionsTree(teamId?: string): Promise<{
       slug: project.slug,
       taskCount: project.tasks.length,
       description: project.description,
+      dueDate: project.dueDate,
       sectionId: project.sectionId,
       tag: project.tag ?? null,
     };

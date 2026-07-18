@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/action-form";
 import { SpaceField } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -28,6 +29,7 @@ export type ProjectFormProps = {
   defaultName?: string;
   defaultDescription?: string;
   defaultSectionId?: string;
+  defaultDueDate?: string;
   defaultTag?: TagOption | null;
   // Namespaces field ids so multiple forms can coexist (e.g. one per sidebar row).
   idPrefix?: string;
@@ -49,6 +51,7 @@ export function ProjectForm({
   defaultName = "",
   defaultDescription = "",
   defaultSectionId,
+  defaultDueDate,
   defaultTag,
   idPrefix = "project",
   submitLabel,
@@ -92,6 +95,16 @@ export function ProjectForm({
           maxLength={240}
           defaultValue={defaultDescription}
           placeholder="Scope, delivery notes, or how this board will be used."
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium" htmlFor={`${idPrefix}-due-date`}>
+          Due date
+        </label>
+        <DatePicker
+          id={`${idPrefix}-due-date`}
+          name="dueDate"
+          defaultValue={defaultDueDate}
         />
       </div>
       {sections && sections.length > 0 ? (

@@ -232,6 +232,7 @@ export const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   sectionId: z.string().optional(),
+  dueDate: z.string().optional(),
   ...tagFields,
 });
 
@@ -240,6 +241,7 @@ export const updateProjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   sectionId: z.string().optional(),
+  dueDate: z.string().optional(),
   ...tagFields,
 });
 
@@ -405,6 +407,7 @@ export async function createProjectCore(
         name: values.name,
         slug,
         description: values.description || null,
+        dueDate: parseOptionalDate(values.dueDate),
         tagId,
         sectionId: values.sectionId || null,
         ...spaceOwnership(space),
@@ -459,6 +462,7 @@ export async function updateProjectCore(
     .set({
       name: values.name,
       description: values.description || null,
+      dueDate: parseOptionalDate(values.dueDate),
       sectionId: values.sectionId || null,
       tagId,
       ...(slug ? { slug } : {}),

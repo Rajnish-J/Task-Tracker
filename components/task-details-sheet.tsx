@@ -15,6 +15,7 @@ import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -212,10 +213,9 @@ function TaskDetailsForm({
           <label className="text-sm font-medium" htmlFor="task-detail-due-date">
             Due date
           </label>
-          <Input
+          <DatePicker
             id="task-detail-due-date"
             name="dueDate"
-            type="date"
             defaultValue={task.dueDate ? format(task.dueDate, "yyyy-MM-dd") : ""}
           />
         </div>

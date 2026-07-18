@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -164,7 +165,7 @@ export function CreateTaskDialog({
             <label className="text-sm font-medium" htmlFor="task-due-date">
               Due date
             </label>
-            <Input id="task-due-date" name="dueDate" type="date" />
+            <DatePicker id="task-due-date" name="dueDate" />
           </div>
           <TagPicker idPrefix="task-tag" defaultTagId={defaultTagId} />
           <div className="flex justify-end">

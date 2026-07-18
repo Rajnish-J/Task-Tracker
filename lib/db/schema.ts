@@ -311,6 +311,7 @@ export const projects = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     description: text("description"),
+    dueDate: timestamp("dueDate", { mode: "date" }),
     position: integer("position").notNull().default(0),
     tagId: text("tagId").references(() => tags.id, { onDelete: "set null" }),
     sectionId: text("sectionId").references(() => sections.id, {
