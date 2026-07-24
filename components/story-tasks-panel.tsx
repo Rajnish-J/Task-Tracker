@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { Check, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, ListChecks, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 
-import { createStoryTask, deleteStoryTask, toggleStoryTask, updateStoryTask } from "@/app/actions";
+import { createStoryTask, deleteStoryTask, toggleStoryTask, updateStoryTasksBatch } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
-import { SpaceField } from "@/components/space-context";
+import { SpaceField, useSpace } from "@/components/space-context";
 import { SubmitButton } from "@/components/submit-button";
 import { TagBadge } from "@/components/tag-badge";
 import { TagPicker } from "@/components/tag-picker";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
+import { runWithToast } from "@/lib/toast-action";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,12 +54,67 @@ const priorityClasses: Record<Priority, string> = {
 };
 
 export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPanelProps) {
-  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const { teamId } = useSpace();
+  const [editingIds, setEditingIds] = React.useState<Set<string>>(new Set());
   const [adding, setAdding] = React.useState(false);
+  const [isSaving, startSaving] = React.useTransition();
+  const formRefs = React.useRef(new Map<string, HTMLFormElement>());
 
   const total = storyTasks.length;
   const done = storyTasks.filter((task) => task.isDone).length;
   const allDone = total > 0 && done === total;
+
+  function startEditing(taskId: string) {
+    setEditingIds((prev) => new Set(prev).add(taskId));
+  }
+
+  function stopEditing(taskId: string) {
+    formRefs.current.delete(taskId);
+    setEditingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }
+
+  function handleSaveAll() {
+    const items: Record<string, string>[] = [];
+
+    for (const taskId of editingIds) {
+      const form = formRefs.current.get(taskId);
+      if (!form) continue;
+      if (!form.reportValidity()) return;
+
+      const fields = new FormData(form);
+      items.push({
+        storyTaskId: taskId,
+        title: fields.get("title") as string,
+        description: (fields.get("description") as string) || "",
+        priority: fields.get("priority") as string,
+        dueDate: (fields.get("dueDate") as string) || "",
+        tagId: (fields.get("tagId") as string) || "",
+        tagName: (fields.get("tagName") as string) || "",
+        tagColor: (fields.get("tagColor") as string) || "",
+      });
+    }
+
+    if (items.length === 0) return;
+
+    const payload = new FormData();
+    if (teamId) payload.set("teamId", teamId);
+    payload.set("projectId", projectId);
+    payload.set("taskId", storyId);
+    payload.set("items", JSON.stringify(items));
+
+    // No success branch here on purpose: updateStoryTasksBatch redirects back
+    // into this same task on success (mirrors ActionForm's convention below —
+    // the navigation/remount is the signal, and it resets editingIds to empty).
+    startSaving(() =>
+      runWithToast(() => updateStoryTasksBatch(payload), {
+        error: "Couldn't save changes. Please try again.",
+      }),
+    );
+  }
 
   return (
     <section className="space-y-3 border-t border-border/60 pt-5">
@@ -90,15 +146,40 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
         </p>
       </div>
 
+      {editingIds.size > 0 ? (
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/95 p-2 shadow-sm backdrop-blur">
+          <span className="text-xs font-medium text-muted-foreground">
+            {editingIds.size} task{editingIds.size === 1 ? "" : "s"} being edited
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isSaving}
+              onClick={() => setEditingIds(new Set())}
+            >
+              Cancel all
+            </Button>
+            <Button type="button" size="sm" disabled={isSaving} onClick={handleSaveAll}>
+              {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              Save changes
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <ul className="space-y-2">
         {storyTasks.map((task) =>
-          editingId === task.id ? (
+          editingIds.has(task.id) ? (
             <li key={task.id} className="rounded-lg border border-border/60 bg-muted/30 p-3">
               <StoryTaskEditForm
-                projectId={projectId}
-                storyId={storyId}
+                ref={(form) => {
+                  if (form) formRefs.current.set(task.id, form);
+                  else formRefs.current.delete(task.id);
+                }}
                 task={task}
-                onDone={() => setEditingId(null)}
+                onCancel={() => stopEditing(task.id)}
               />
             </li>
           ) : (
@@ -160,7 +241,7 @@ export function StoryTasksPanel({ projectId, storyId, storyTasks }: StoryTasksPa
                   variant="ghost"
                   className="size-7"
                   aria-label="Edit task"
-                  onClick={() => setEditingId(task.id)}
+                  onClick={() => startEditing(task.id)}
                 >
                   <Pencil className="size-3.5" />
                 </Button>
@@ -235,40 +316,25 @@ function StoryTaskCreateForm({
   );
 }
 
-function StoryTaskEditForm({
-  projectId,
-  storyId,
-  task,
-  onDone,
-}: {
-  projectId: string;
-  storyId: string;
-  task: StoryTask;
-  onDone: () => void;
-}) {
+// Holds one task's edit fields for the panel-wide "Save changes" batch — it
+// never submits itself. Its form ref is read on demand by handleSaveAll, and
+// the only way this task leaves edit mode on its own is the Cancel button.
+const StoryTaskEditForm = React.forwardRef<
+  HTMLFormElement,
+  { task: StoryTask; onCancel: () => void }
+>(function StoryTaskEditForm({ task, onCancel }, ref) {
   return (
-    <ActionForm
-      action={updateStoryTask}
-      errorMessage="Couldn't save task. Please try again."
-      className="space-y-3"
-    >
-      <SpaceField />
-      <input type="hidden" name="projectId" value={projectId} />
-      <input type="hidden" name="taskId" value={storyId} />
-      <input type="hidden" name="storyTaskId" value={task.id} />
+    <form ref={ref} className="space-y-3" onSubmit={(event) => event.preventDefault()}>
       <StoryTaskFields task={task} />
       <div className="flex items-center justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onDone}>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           <X className="size-3.5" />
           Cancel
         </Button>
-        <SubmitButton size="sm" variant="secondary" pendingLabel="Saving...">
-          Save
-        </SubmitButton>
       </div>
-    </ActionForm>
+    </form>
   );
-}
+});
 
 function StoryTaskFields({
   task,

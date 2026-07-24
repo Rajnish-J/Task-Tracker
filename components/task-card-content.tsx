@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -94,6 +95,7 @@ export function TaskCardContent({
   const [tasksOpen, setTasksOpen] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const titleInputRef = React.useRef<HTMLInputElement>(null);
   const totalTasks = task.storyTasks.length;
   const doneTasks = task.storyTasks.filter((child) => child.isDone).length;
   const allDone = totalTasks > 0 && doneTasks === totalTasks;
@@ -249,7 +251,7 @@ export function TaskCardContent({
                   action={createStoryTaskOnBoard}
                   successMessage="Task added"
                   errorMessage="Couldn't add task. Please try again."
-                  onSuccess={() => setAdding(false)}
+                  onSuccess={() => titleInputRef.current?.focus()}
                   onClick={stopCardEvents}
                   onPointerDown={stopCardEvents}
                   className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/30 p-2"
@@ -259,6 +261,7 @@ export function TaskCardContent({
                   <input type="hidden" name="taskId" value={task.id} />
                   <div className="flex items-center gap-2">
                     <Input
+                      ref={titleInputRef}
                       name="title"
                       required
                       maxLength={120}
@@ -295,14 +298,16 @@ export function TaskCardContent({
                       </SelectContent>
                     </Select>
                   </div>
-                  <Input
+                  <DatePicker
+                    id={`board-story-due-date-${task.id}`}
                     name="dueDate"
-                    type="date"
-                    aria-label="New task due date"
                     className="h-8 text-xs"
-                    onKeyDown={(event) => event.stopPropagation()}
                   />
-                  <TagPicker idPrefix={`board-story-tag-${task.id}`} defaultTagId={defaultTagId} />
+                  <TagPicker
+                    idPrefix={`board-story-tag-${task.id}`}
+                    defaultTag={task.tag}
+                    defaultTagId={defaultTagId}
+                  />
                   <div className="flex items-center justify-end gap-2">
                     <Button
                       type="button"

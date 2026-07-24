@@ -32,6 +32,7 @@ import {
   updateProjectSectionCore,
   updateSectionCore,
   updateStoryTaskCore,
+  updateStoryTasksBatchCore,
   updateTaskCore,
 } from "@/lib/db/mutations";
 import { tags } from "@/lib/db/schema";
@@ -397,6 +398,17 @@ export async function updateStoryTask(formData: FormData) {
 
   revalidatePath(`${base}/projects/${values.projectId}`);
   redirect(`${base}/projects/${values.projectId}?task=${values.taskId}`);
+}
+
+export async function updateStoryTasksBatch(formData: FormData) {
+  const projectId = formData.get("projectId") as string;
+  const taskId = formData.get("taskId") as string;
+  const items = JSON.parse(formData.get("items") as string);
+  const { space, base } = await resolveFormSpace(formData);
+  await run(updateStoryTasksBatchCore({ projectId, taskId, items }, space));
+
+  revalidatePath(`${base}/projects/${projectId}`);
+  redirect(`${base}/projects/${projectId}?task=${taskId}`);
 }
 
 function readToggleStoryTaskFields(formData: FormData) {

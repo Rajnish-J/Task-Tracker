@@ -330,6 +330,12 @@ export const updateStoryTaskSchema = z.object({
   ...tagFields,
 });
 
+export const updateStoryTasksBatchSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  items: z.array(updateStoryTaskSchema.omit({ projectId: true, taskId: true })).min(1),
+});
+
 export const toggleStoryTaskSchema = z.object({
   projectId: z.string().min(1),
   taskId: z.string().min(1),
@@ -1096,6 +1102,36 @@ export async function updateStoryTaskCore(
       tagId,
     })
     .where(and(eq(storyTasks.id, values.storyTaskId), eq(storyTasks.taskId, values.taskId)));
+}
+
+export async function updateStoryTasksBatchCore(
+  input: z.input<typeof updateStoryTasksBatchSchema>,
+  space: MutationSpace,
+) {
+  const values = updateStoryTasksBatchSchema.parse(input);
+  await assertProjectOwned(values.projectId, space);
+  await assertTaskInProject(values.taskId, values.projectId);
+
+  // Tag resolution stays outside the transaction — see resolveTagId's doc
+  // comment above (tag rows live independently of the item).
+  const resolved = await Promise.all(
+    values.items.map(async (item) => ({ item, tagId: await resolveTagId(item, space) })),
+  );
+
+  await db.transaction(async (tx) => {
+    for (const { item, tagId } of resolved) {
+      await tx
+        .update(storyTasks)
+        .set({
+          title: item.title,
+          description: item.description || null,
+          priority: item.priority,
+          dueDate: parseOptionalDate(item.dueDate),
+          tagId,
+        })
+        .where(and(eq(storyTasks.id, item.storyTaskId), eq(storyTasks.taskId, values.taskId)));
+    }
+  });
 }
 
 export async function toggleStoryTaskCore(
